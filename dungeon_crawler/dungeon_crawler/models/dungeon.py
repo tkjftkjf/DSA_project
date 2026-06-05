@@ -69,21 +69,3 @@ class Dungeon:
                 extra_cycles=extra_cycles,
             ),
         )
-
-    def generate_rooms(
-        self,
-        room_count: int,
-        *,
-        seed: int = 0,
-        max_attempts: int = 500,
-        extra_cycles: int = 1,
-    ) -> None:
-        from dungeon_crawler.generation.legacy_room_generator import generate_legacy_rooms
-
-        generate_legacy_rooms(
-            self,
-            room_count,
-            seed=seed,
-            max_attempts=max_attempts,
-            extra_cycles=extra_cycles,
-        )

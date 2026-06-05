@@ -7,8 +7,8 @@ from dungeon_crawler.models.dungeon import Dungeon
 
 class DungeonGenerationTest(unittest.TestCase):
     def test_generates_non_overlapping_rooms(self) -> None:
-        dungeon = Dungeon(width=20, height=20)
-        dungeon.generate_rooms(room_count=8, seed=7)
+        dungeon = Dungeon()
+        dungeon.generate_floor(floor_id=1, room_count=8, seed=7)
 
         all_tiles: set[tuple[int, int]] = set()
         for node in dungeon.room_nodes.values():
@@ -16,8 +16,8 @@ class DungeonGenerationTest(unittest.TestCase):
             all_tiles |= node.tiles
 
     def test_spanning_tree_connects_all_rooms(self) -> None:
-        dungeon = Dungeon(width=20, height=20)
-        dungeon.generate_rooms(room_count=6, seed=13, extra_cycles=0)
+        dungeon = Dungeon()
+        dungeon.generate_floor(floor_id=1, room_count=6, seed=13, extra_cycles=0)
 
         graph: dict[int, set[int]] = {rid: set() for rid in dungeon.room_nodes}
         for a, b in dungeon.edges:
@@ -38,17 +38,16 @@ class DungeonGenerationTest(unittest.TestCase):
         self.assertEqual(len(dungeon.edges), len(dungeon.room_nodes) - 1)
 
     def test_extra_cycle_adds_additional_edge(self) -> None:
-        dungeon = Dungeon(width=20, height=20)
-        dungeon.generate_rooms(room_count=6, seed=21, extra_cycles=1)
-        self.assertGreaterEqual(len(dungeon.edges), len(dungeon.room_nodes))
+        dungeon = Dungeon()
+        dungeon.generate_floor(floor_id=1, room_count=6, seed=21, extra_cycles=1)
+        self.assertGreater(len(dungeon.edges), len(dungeon.room_nodes) - 1)
 
     def test_corridors_expand_floor_tiles(self) -> None:
-        dungeon = Dungeon(width=20, height=20)
-        dungeon.generate_rooms(room_count=6, seed=5, extra_cycles=0)
+        dungeon = Dungeon()
+        dungeon.generate_floor(floor_id=1, room_count=6, seed=5, extra_cycles=0)
         room_tile_count = sum(len(n.tiles) for n in dungeon.room_nodes.values())
         self.assertGreater(len(dungeon.floor_tiles), room_tile_count)
 
 
 if __name__ == "__main__":
     unittest.main()
-

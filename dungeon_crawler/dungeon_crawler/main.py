@@ -2,62 +2,62 @@ from __future__ import annotations
 
 from dungeon_crawler.engine.game_manager import GameManager
 from dungeon_crawler.engine.input_handler import InputHandler
-from dungeon_crawler.models.dungeon import Dungeon
+from dungeon_crawler.engine.session import compute_score, create_game_manager
 from dungeon_crawler.models.entity import Entity
-from dungeon_crawler.models.inventory import Inventory
-from dungeon_crawler.models.item import Item
+from dungeon_crawler.ui.menu import render_main_menu
 from dungeon_crawler.ui.renderer import Renderer
+from dungeon_crawler.utils.leaderboard import Leaderboard, ScoreEntry
+from dungeon_crawler.utils.leaderboard_store import load_leaderboard, save_leaderboard
 
 
 def main() -> int:
-    dungeon = Dungeon(width=30, height=20)
-    dungeon.generate_rooms(room_count=10, seed=7, extra_cycles=2)
+    leaderboard = load_leaderboard()
+    while True:
+        if not show_main_menu(leaderboard):
+            return 0
+        manager = create_game_manager()
+        result = run_game_loop(manager)
+        score = compute_score(manager.player, manager.turn_manager.turn_id, manager.kills)
+        leaderboard.add(
+            ScoreEntry(name="player", score=score, level=manager.player.level)
+        )
+        save_leaderboard(leaderboard)
+        manager.logs.append(f"최종 점수: {score} (결과: {result})")
+        _render_frame(manager)
+        if input("\n메인으로 돌아가려면 Enter > ").strip().lower() == "q":
+            return 0
 
-    floor = sorted(dungeon.floor_tiles)
-    player_pos = floor[0]
-    enemy_pos = floor[min(10, len(floor) - 1)]
-    enemy2_pos = floor[min(18, len(floor) - 1)]
 
-    player = Entity(
-        name="player",
-        x=player_pos[0],
-        y=player_pos[1],
-        hp=20,
-        max_hp=20,
-        atk=5,
-        defense=1,
-        inventory=Inventory(),
-    )
-    # starter ammo
-    assert player.inventory is not None
-    for _ in range(3):
-        player.inventory.add_item(Item(name="arrow", icon="🏹"))
+def show_main_menu(leaderboard: Leaderboard) -> bool:
+    text = render_main_menu(leaderboard)
+    try:
+        from rich.console import Console
 
-    enemy = Entity(name="enemy1", x=enemy_pos[0], y=enemy_pos[1], hp=8, max_hp=8, atk=2, defense=0, exp_reward=5)
-    enemy2 = Entity(name="enemy2", x=enemy2_pos[0], y=enemy2_pos[1], hp=10, max_hp=10, atk=3, defense=1, exp_reward=7)
-    manager = GameManager(
-        dungeon=dungeon,
-        player=player,
-        entities=[player, enemy, enemy2],
-        base_seed=2026,
-    )
-    # place loot
-    manager.ground_items[floor[min(4, len(floor) - 1)]] = [Item(name="heart_red", icon="❤️", heal_amount=3)]
-    manager.ground_items[floor[min(12, len(floor) - 1)]] = [Item(name="heart_blue", icon="💙", heal_amount=5)]
+        Console().clear()
+        Console().print(text)
+    except ModuleNotFoundError:
+        print(text)
+    choice = input("\n> ").strip().lower()
+    return choice != "q"
 
+
+def run_game_loop(manager: GameManager) -> str:
+    player = manager.player
     input_handler = InputHandler()
-    manager.logs.append("게임이 시작되었습니다. (w/a/s/d, c/v, u/r, 1~0, esc)")
+    manager.logs.append("조작: w/a/s/d, c/v, u/r, 1~0, i, esc")
 
     while player.is_alive:
+        if manager.all_enemies_defeated():
+            manager.logs.append("모든 적을 처치했습니다! 승리!")
+            return "victory"
+
         _render_frame(manager)
         raw = input("\n명령 입력 > ").strip().lower()
         if not raw:
             continue
-        if raw == "q":
-            break
-        if raw == "esc":
+        if raw in {"q", "esc"}:
             manager.logs.append("메인 화면으로 이동합니다.")
-            break
+            return "retreat"
 
         cmd = input_handler.parse_key(raw)
         if cmd is None:
@@ -97,10 +97,9 @@ def main() -> int:
             if player.hp <= 0:
                 player.is_alive = False
                 manager.logs.append("플레이어가 쓰러졌습니다. 게임 오버.")
-                break
+                return "defeat"
 
-    _render_frame(manager)
-    return 0
+    return "defeat"
 
 
 def _inventory_text(player: Entity) -> str:
@@ -127,16 +126,25 @@ def _render_frame(manager: GameManager) -> None:
             continue
         grid[entity.y][entity.x] = "👾"
 
+    try:
+        from rich.console import Console
+
+        console = Console()
+        width = max(20, console.size.width // 2 - 4)
+        height = max(8, console.size.height - 6)
+    except ModuleNotFoundError:
+        width, height = 20, 12
+
     viewport = Renderer.compute_viewport(
         map_width=dungeon.width,
         map_height=dungeon.height,
         player_pos=manager.player.pos,
-        viewport_width=20,
-        viewport_height=12,
+        viewport_width=width,
+        viewport_height=height,
     )
     map_text = Renderer.render_viewport(grid, player_pos=manager.player.pos, viewport=viewport)
     status_text = manager.status_text()
-    log_text = "\n".join(manager.logs[-8:]) if manager.logs else "-"
+    log_text = "\n".join(manager.logs[-10:]) if manager.logs else "-"
 
     try:
         from rich.console import Console
@@ -156,4 +164,3 @@ def _render_frame(manager: GameManager) -> None:
 
 if __name__ == "__main__":
     raise SystemExit(main())
-

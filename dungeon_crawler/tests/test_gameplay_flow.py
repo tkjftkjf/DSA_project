@@ -53,6 +53,20 @@ class GameplayFlowTest(unittest.TestCase):
         assert self.player.inventory is not None
         self.assertEqual(self.player.inventory.counts.get("heart_red", 0), 1)
 
+    def test_failed_attack_keeps_pending_mode(self) -> None:
+        self.manager.set_attack_mode("melee")
+        acted = self.manager.try_player_attack(dx=0, dy=-1)
+        self.assertFalse(acted)
+        self.assertEqual(self.manager.pending_attack_mode, "melee")
+
+    def test_kill_increments_kills_and_levels_up(self) -> None:
+        self.enemy.hp = 1
+        self.enemy.exp_reward = 20
+        self.player.exp = 0
+        self.manager.try_player_move(dx=1, dy=0)
+        self.assertEqual(self.manager.kills, 1)
+        self.assertGreaterEqual(self.player.level, 2)
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -26,6 +26,7 @@ class GameManager:
     logs: list[str] = field(default_factory=list)
     ground_items: dict[tuple[int, int], list[Item]] = field(default_factory=dict)
     pending_attack_mode: str | None = None
+    kills: int = 0
 
     def __post_init__(self) -> None:
         self.turn_manager = TurnManager(base_seed=self.base_seed, turn_id=0)
@@ -95,7 +96,6 @@ class GameManager:
 
     def try_player_attack(self, dx: int, dy: int) -> bool:
         mode = self.pending_attack_mode
-        self.pending_attack_mode = None
         if mode is None:
             return False
 
@@ -105,6 +105,7 @@ class GameManager:
             if enemy is None:
                 self.logs.append("공격 대상이 없습니다.")
                 return False
+            self.pending_attack_mode = None
             return self._resolve_combat(self.player, enemy)
 
         if mode == "ranged":
@@ -115,13 +116,12 @@ class GameManager:
             if enemy is None:
                 self.logs.append("사격 경로에 적이 없습니다.")
                 return False
-            # consume one arrow immediately (undo-able via ConsumeAction model was for heals only;
-            # keep ranged ammo simple with direct inventory mutation).
             try:
                 self.player.inventory.remove_first_by_name("arrow")
             except ValueError:
                 self.logs.append("화살이 부족합니다.")
                 return False
+            self.pending_attack_mode = None
             return self._resolve_combat(self.player, enemy, ranged=True)
 
         return False
@@ -158,15 +158,25 @@ class GameManager:
             if enemy.pos != before:
                 self.logs.append(f"{enemy.name} 이동: {before} -> {enemy.pos}")
 
+    def all_enemies_defeated(self) -> bool:
+        return not any(e is not self.player and e.is_alive for e in self.entities)
+
     def status_text(self) -> str:
         arrows = 0
         if self.player.inventory is not None:
             arrows = self.player.inventory.counts.get("arrow", 0)
+        mode_line = ""
+        if self.pending_attack_mode == "melee":
+            mode_line = "Mode: 근접(C) - WASD로 방향 선택\n"
+        elif self.pending_attack_mode == "ranged":
+            mode_line = "Mode: 원거리(V) - WASD로 방향 선택\n"
         return (
+            f"{mode_line}"
             f"Turn: {self.turn_manager.turn_id}\n"
             f"HP: {self.player.hp}/{self.player.max_hp}\n"
             f"ATK/DEF: {self.player.atk}/{self.player.defense}\n"
             f"EXP/LV: {self.player.exp}/{self.player.level}\n"
+            f"Kills: {self.kills}\n"
             f"Arrows: {arrows}"
         )
 
@@ -178,11 +188,21 @@ class GameManager:
             entity_pool=self.entities,
         )
         before_hp = defender.hp
+        was_alive = defender.is_alive
         self.execute_action(action)
         if defender.hp == before_hp:
             return False
         kind = "원거리" if ranged else "근접"
         self.logs.append(f"{attacker.name} {kind} 공격 -> {defender.name} HP {before_hp}->{defender.hp}")
+
+        if was_alive and not defender.is_alive and attacker is self.player:
+            self.kills += 1
+            self.logs.append(f"EXP +{defender.exp_reward} (현재 {self.player.exp})")
+            if self.player.try_level_up():
+                self.logs.append(
+                    f"레벨 업! LV {self.player.level} (HP {self.player.hp}, ATK {self.player.atk}, DEF {self.player.defense})"
+                )
+
         return True
 
     def _try_auto_loot(self, pos: tuple[int, int]) -> None:

@@ -10,6 +10,9 @@ python3 -m unittest discover -s tests -t . -p "test_*.py"
 python3 -m dungeon_crawler.main
 ```
 
+게임은 **리더보드 메인 화면**에서 시작합니다. Enter로 시작, `q`로 종료합니다.  
+플레이 종료(승리/패배/esc) 후 점수가 리더보드에 저장됩니다 (`leaderboard.json`).
+
 ## Quick Start (Docker)
 
 저장소 루트(`DSA_project`)에서 실행:

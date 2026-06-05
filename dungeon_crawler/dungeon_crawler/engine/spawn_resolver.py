@@ -68,6 +68,7 @@ class SpawnResolver:
                     atk=stats["atk"],
                     defense=stats["defense"],
                     exp_reward=stats["exp_reward"],
+                    floor_id=floor_id,
                 )
             )
         return enemies

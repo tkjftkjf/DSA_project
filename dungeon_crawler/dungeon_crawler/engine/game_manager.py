@@ -39,7 +39,7 @@ class GameManager:
     floor_manager: Optional[FloorManager] = None
     undo_manager: UndoManager = field(default_factory=UndoManager)
     logs: list[str] = field(default_factory=list)
-    ground_items: dict[tuple[int, int], list[Item]] = field(default_factory=dict)
+    ground_items_by_floor: dict[int, dict[tuple[int, int], list[Item]]] = field(default_factory=dict)
     pending_attack_mode: Optional[str] = None
     kills: int = 0
     show_inventory: bool = False
@@ -59,11 +59,23 @@ class GameManager:
         assert self.dungeon is not None
         return self.dungeon
 
+    @property
+    def current_floor_id(self) -> int:
+        if self.floor_manager is not None:
+            return self.floor_manager.current_floor
+        return 1
+
+    @property
+    def active_ground_items(self) -> dict[tuple[int, int], list[Item]]:
+        if self.ground_items_by_floor:
+            return self.ground_items_by_floor.get(self.current_floor_id, {})
+        return {}
+
     def game_context(self) -> GameContext:
         return GameContext(
             dungeon=self.active_dungeon,
             entities=self.entities,
-            ground_items=self.ground_items,
+            ground_items=self.active_ground_items,
             player=self.player,
         )
 
@@ -180,7 +192,7 @@ class GameManager:
         for enemy in list(self.entities):
             if enemy is self.player or not enemy.is_alive:
                 continue
-            if not self._on_active_floor(enemy.pos):
+            if enemy.floor_id != self.current_floor_id:
                 continue
             state = {"fallback_idx": 0, "wander": None}
             plans.append(
@@ -220,7 +232,7 @@ class GameManager:
 
     def all_enemies_defeated(self) -> bool:
         return not any(
-            e is not self.player and e.is_alive and self._on_active_floor(e.pos)
+            e is not self.player and e.is_alive and e.floor_id == self.current_floor_id
             for e in self.entities
         )
 
@@ -279,7 +291,7 @@ class GameManager:
     def _try_auto_loot(self, pos: tuple[int, int]) -> None:
         if self.player.inventory is None:
             return
-        items = self.ground_items.get(pos, [])
+        items = self.active_ground_items.get(pos, [])
         if not items:
             return
         item = items[0]
@@ -288,7 +300,7 @@ class GameManager:
             looter=self.player,
             item=item,
             position=pos,
-            ground_items=self.ground_items,
+            ground_items=self.active_ground_items,
         )
         result = self.action_validator.validate(action, self.game_context())
         if not result.ok:
@@ -330,7 +342,7 @@ class GameManager:
                 dy=dy,
             )
 
-        blockers = set(self.ground_items.keys())
+        blockers = set(self.active_ground_items.keys())
         blockers |= {
             e.pos
             for e in self.entities
@@ -367,13 +379,14 @@ class GameManager:
         for entity in self.entities:
             if entity is self.player:
                 continue
-            if entity.is_alive and entity.pos == pos and self._on_active_floor(pos):
+            if (
+                entity is not self.player
+                and entity.is_alive
+                and entity.pos == pos
+                and entity.floor_id == self.current_floor_id
+            ):
                 return entity
         return None
-
-    def _on_active_floor(self, pos: tuple[int, int]) -> bool:
-        floors = self.active_dungeon.floor_tiles
-        return not floors or pos in floors
 
     def _trace_projectile(self, dx: int, dy: int) -> ProjectileResult:
         x, y = self.player.pos
@@ -384,7 +397,7 @@ class GameManager:
                 return ProjectileResult(hit_enemy=None, blocked_at=(x - dx, y - dy), block_reason="boundary")
             if not self.active_dungeon.is_walkable(x, y):
                 return ProjectileResult(hit_enemy=None, blocked_at=(x, y), block_reason="wall")
-            if self.ground_items.get((x, y)):
+            if self.active_ground_items.get((x, y)):
                 return ProjectileResult(hit_enemy=None, blocked_at=(x, y), block_reason="item")
             enemy = self._enemy_at((x, y))
             if enemy is not None:

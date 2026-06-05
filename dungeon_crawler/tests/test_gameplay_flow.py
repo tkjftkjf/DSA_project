@@ -47,7 +47,7 @@ class GameplayFlowTest(unittest.TestCase):
 
     def test_auto_loot_on_move(self) -> None:
         potion = Item(name="heart_red", icon="❤️", heal_amount=3)
-        self.manager.ground_items[(1, 2)] = [potion]
+        self.manager.ground_items_by_floor[1] = {(1, 2): [potion]}
         moved = self.manager.try_player_move(dx=0, dy=1)
         self.assertTrue(moved)
         assert self.player.inventory is not None

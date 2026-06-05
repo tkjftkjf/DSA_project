@@ -35,7 +35,7 @@ def create_game_manager(seed: int = 7) -> GameManager:
         player.inventory.add_item(Item(name="arrow", icon="🏹"))
 
     enemies: list[Entity] = []
-    ground_items: dict[tuple[int, int], list[Item]] = {}
+    ground_items_by_floor: dict[int, dict[tuple[int, int], list[Item]]] = {}
 
     for floor_idx, floor_dungeon in enumerate(floor_manager.floors):
         floor_id = floor_idx + 1
@@ -50,8 +50,7 @@ def create_game_manager(seed: int = 7) -> GameManager:
             floor_dungeon.item_spawn_tiles,
             floor_id=floor_id,
         )
-        for pos, items in floor_items.items():
-            ground_items.setdefault(pos, []).extend(items)
+        ground_items_by_floor[floor_id] = floor_items
 
     manager = GameManager(
         dungeon=dungeon,
@@ -59,7 +58,7 @@ def create_game_manager(seed: int = 7) -> GameManager:
         player=player,
         entities=[player, *enemies],
         base_seed=base_seed,
-        ground_items=ground_items,
+        ground_items_by_floor=ground_items_by_floor,
     )
     manager.logs.append("던전에 진입했습니다.")
     return manager

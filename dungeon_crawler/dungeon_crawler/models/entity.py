@@ -17,6 +17,7 @@ class Entity:
     level: int = 1
     exp: int = 0
     exp_reward: int = 0
+    floor_id: int = 1
     is_alive: bool = True
     inventory: Optional[Inventory] = None
 

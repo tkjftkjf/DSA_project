@@ -112,11 +112,14 @@ def _render_frame(manager: GameManager) -> None:
     grid = [[Renderer.WALL for _ in range(dungeon.width)] for _ in range(dungeon.height)]
     for x, y in dungeon.floor_tiles:
         grid[y][x] = Renderer.FLOOR
-    for pos, items in manager.ground_items.items():
+    current_floor = manager.current_floor_id
+    for pos, items in manager.active_ground_items.items():
         if items:
             grid[pos[1]][pos[0]] = items[0].icon
     for entity in manager.entities:
         if entity is manager.player or not entity.is_alive:
+            continue
+        if entity.floor_id != current_floor:
             continue
         grid[entity.y][entity.x] = "👾"
 

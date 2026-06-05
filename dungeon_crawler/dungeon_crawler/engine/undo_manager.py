@@ -6,7 +6,7 @@ from dungeon_crawler.actions.base_action import Action
 from dungeon_crawler.actions.marker_action import EndTurnAction
 
 
-@dataclass(slots=True)
+@dataclass
 class UndoManager:
     """
     Two-stack undo/redo manager.
@@ -66,23 +66,16 @@ class UndoManager:
         if not self.can_redo():
             return None
 
-        marker = self._pop_until_marker(self.redo_stack)
-        assert marker is not None
-        turn_id = marker.turn_id
-
-        # redo_stack currently contains: ... [EndTurn] [actions undone in reverse push order]
-        # We need to replay actions in original execution order:
-        # - The last undone action should execute first? Actually during undo we appended each popped action.
-        #   redo_stack order (top last): marker, a1, a2, ... (where a_last was undone first).
-        # So we pull until next marker or stack end, then reverse to execute.
         actions_to_redo: list[Action] = []
-        while self.redo_stack:
-            top = self.redo_stack[-1]
-            if isinstance(top, EndTurnAction):
-                break
+        while self.redo_stack and not isinstance(self.redo_stack[-1], EndTurnAction):
             actions_to_redo.append(self.redo_stack.pop())
 
-        actions_to_redo.reverse()
+        if not self.redo_stack or not isinstance(self.redo_stack[-1], EndTurnAction):
+            return None
+
+        marker = self.redo_stack.pop()
+        turn_id = marker.turn_id
+
         for action in actions_to_redo:
             action.execute()
             self.undo_stack.append(action)

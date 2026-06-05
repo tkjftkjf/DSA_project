@@ -317,12 +317,13 @@ User keyDown → KeyListener → InputHandler.parse_key
 
 * 각 층은 독립된 `80×45` 그리드를 가진다.
 * 층 전환 시 플레이어는 다음 층 **시작 방** 또는 해당 층 진입 계단 연결 지점에 스폰한다 (구현 시 세부 규칙 확정).
+* 플레이어는 시작 방의 중앙에서 스폰한다.
 
 #### **7.5.2. 방 템플릿 파일 형식 (TXT)**
 
 * **경로:** `dungeon_crawler/templates/rooms/{room_type}/{name}.txt`
 * **room_type:** `start` (시작방), `normal` (일반 방), `boss` (최종 방)
-* **인코딩:** UTF-8, 한 줄 = 그리드의 한 행, 문자는 `0` `1` `2` `3` 만 사용
+* **인코딩:** UTF-8, 한 줄 = 그리드의 한 행, 문자는 `0` `1` `2` `3` `4` 만 사용
 
 | 문자 | 의미 |
 | :---- | :---- |
@@ -330,6 +331,7 @@ User keyDown → KeyListener → InputHandler.parse_key
 | `1` | 벽 (이동 불가) |
 | `2` | 계단 (다음 층 이동 트리거) |
 | `3` | 적 스폰 마커 (위치만 표시, 스탯은 맵에서 정의하지 않음) |
+| `4` | 아이템(하트) 스폰 마커 (위치만 표시, 종류는 맵에서 정의하지 않음) |
 
 **예시 (`normal/cross.txt`, 5×5):**
 
@@ -346,6 +348,7 @@ User keyDown → KeyListener → InputHandler.parse_key
 * **가장 바깥 벽은 템플릿에 포함하지 않는다.** 방과 방 사이·맵 경계의 외곽 벽은 **배치 엔진**이 별도로 생성한다.
 * 템플릿 최소 단위는 **5×5 한 칸(cell)** 이다.
 * 템플릿 파일의 가로·세로는 5의 배수여야 한다 (5×5, 10×5, 10×10 등).
+* **내부 둘레 벽 허용:** 5×5 단위 안에서 1·5행(또는 1·5열)에 `01110`, `11011`, `10001` 등 **방 내부의 가장 바깥** 둘레 벽을 둘 수 있다. 이 벽은 템플릿 외곽 벽(§7.5.3 첫 항)과 별개이다.
 
 #### **7.5.4. 5×5 그리드 배치 (모듈러 방 조립)**
 
@@ -374,8 +377,33 @@ User keyDown → KeyListener → InputHandler.parse_key
 2. 메타 그리드에 `start` 방 1개 배치 (Floor 1)
 3. Spanning Tree 등으로 `normal` 방 메타 칸 배치·연결
 4. 선택된 메타 칸 그룹에 TXT 템플릿 스탬핑 (월드 좌표로 변환)
-5. 방 내부 `1` → 벽, `0` → 바닥, `2` → 계단 엔티티/타일, `3` → 스폰 마커 등록
+5. 방 내부 `1` → 벽, `0` → 바닥, `2` → 계단 엔티티/타일, `3` → 적 스폰 마커, `4` → 아이템 스폰 마커 등록
 6. 외곽 벽 자동 생성 (템플릿 바깥 경계·미사용 메타 칸)
+7. 인접 방 연결 통로 생성 (§7.5.4.1 규칙)
+
+#### **7.5.4.1. 방 연결 통로 (0 타일만 개구부)**
+
+Spanning Tree 등으로 인접 메타 칸을 연결할 때, **양쪽 템플릿 모두 `0`인 타일**로만 통로를 뚫는다.
+
+* **공유 변(edge) 규칙:** 좌우 인접 시 각 방의 **해당 열(1열 또는 5열)** 을, 상하 인접 시 **해당 행(1행 또는 5행)** 을 비교한다.
+* **연결 가능:** 공유 변의 같은 오프셋 위치에서 **양쪽 모두 `0`** 인 타일.
+* **연결 불가:** 한쪽이라도 `1`(벽)·`2`·`3`·`4`이면 그 좌표는 개구부 후보에서 제외 (`2`/`3`/`4`는 바닥이 아니므로 통로로 쓰지 않음).
+* **내부 둘레 벽 템플릿:** 1·5행(또는 1·5열)이 `01110`, `11011`, `10001`처럼 벽과 `0`이 섞인 경우, 통로는 반드시 **`0` 구간**에만 연결한다. 벽(`1`) 타일을 뚫어 연결하지 않는다.
+
+```
+예: start/4.txt (5×5)
+
+  11011   ← 1행: 좌·우만 벽, 중앙(열3)은 0 → 상·하 연결 후보
+  10001
+  10001
+  10001
+  11011   ← 5행: 동일
+
+  → 북쪽 이웃과 연결 시 1행 열3(0) / 남쪽 이웃은 5행 열3(0)만 사용
+```
+
+* **후보가 여러 개:** 시드 기반 RNG로 하나 선택.
+* **후보가 없음:** 해당 메타 칸 쌍은 연결 스킵 또는 다른 인접 쌍·템플릿 재배치 (구현 시 fallback 정의).
 
 #### **7.5.5. 적 스폰 및 층별 스탯 (맵과 분리)**
 
@@ -391,6 +419,23 @@ User keyDown → KeyListener → InputHandler.parse_key
 * RNG: `random.seed(base_seed + floor_id + spawn_index)` — Undo/Redo 난수 동기화(2.2)와 정합.
 * Floor 3 **최종 방**의 보스는 동일 테이블에 `boss` 프로필 배율(예: HP×1.5)을 적용할 수 있다.
 
+#### **7.5.5.1. 아이템(하트) 스폰 (맵과 분리)**
+
+* TXT의 `4`는 **스폰 위치만** 정의한다. 어떤 하트인지는 템플릿·맵 파일에 넣지 않는다.
+* 스폰 시 **§2.4 하트 6종** (❤️ \~ 💜) 중 하나를 시드 기반 RNG로 결정한다.
+
+| 하트 | 이모지 | 회복량 |
+| :---- | :---- | :---- |
+| heart_red | ❤️ | 3 |
+| heart_orange | 🧡 | 5 |
+| heart_yellow | 💛 | 10 |
+| heart_green | 💚 | 15 |
+| heart_blue | 💙 | 20 |
+| heart_purple | 💜 | 30 |
+
+* RNG: `random.seed(base_seed + floor_id + item_spawn_index)` — 적 스폰(§7.5.5)과 동일한 Undo/Redo 난수 정합 원칙.
+* 🏹 화살은 템플릿 마커로 두지 않는다. (기존 §2.4 로직·층별 바닥 드랍 등 별도 규칙 유지)
+
 #### **7.5.6. As-Is vs To-Be**
 
 | 항목 | As-Is (현재 코드) | To-Be (v3.1) |
@@ -402,6 +447,9 @@ User keyDown → KeyListener → InputHandler.parse_key
 | 배치 | 랜덤 앵커 | **5×5 메타 그리드 + 병합** |
 | 적 위치 | `floor[8]` 등 인덱스 | **템플릿 `3` 마커** |
 | 적 스탯 | 고정 공식 | **층별 랜덤 범위** |
+| 아이템 위치 | 랜덤 바닥 타일 | **템플릿 `4` 마커** |
+| 하트 종류 | 세션 생성 시 고정 풀 | **§2.4 6종 중 RNG** |
+| 방 연결 | 방 중심 L자 통로 | **`0` 타일 개구부만** |
 
 #### **7.5.7. 구현 대상 (후속)**
 
@@ -409,7 +457,7 @@ User keyDown → KeyListener → InputHandler.parse_key
 * `dungeon_crawler/models/room_template.py` — `RoomTemplateLoader`
 * `dungeon_crawler/models/dungeon.py` — 메타 그리드 배치·병합·외곽 벽·통로
 * `dungeon_crawler/engine/floor_manager.py` — 3층 전환, 계단 상호작용
-* `dungeon_crawler/engine/spawn_resolver.py` — `3` 마커 → Entity + 층별 스탯 롤
+* `dungeon_crawler/engine/spawn_resolver.py` — `3` 마커 → Entity + 층별 스탯 롤, `4` 마커 → 하트 6종 롤
 
 ### **7.6. Action 의도·검증·일괄 Resolve (v3.1)**
 
@@ -475,9 +523,11 @@ User keyDown → KeyListener → InputHandler.parse_key
 | :---- | :---- | :---- | :---- |
 | 1 | 월드 크기 | Floor 1 로드 | 그리드 80×45 |
 | 2 | 3층·계단 | Floor 1 계단(2) 상호작용 | Floor 2로 전환 |
-| 3 | TXT 템플릿 | `templates/rooms/normal/*.txt` 로드 | 0/1/2/3 파싱, 외곽 벽 미포함 |
+| 3 | TXT 템플릿 | `templates/rooms/normal/*.txt` 로드 | 0/1/2/3/4 파싱, 외곽 벽 미포함 |
 | 4 | 5×5 메타 그리드 | 10×10 템플릿 2칸 병합 배치 | 합성 방 1개로 스탬핑 |
 | 5 | 적 스폰 | 템플릿 `3` 2칸 + Floor 2 | 위치는 템플릿, 스탯은 Floor 2 범위 내 랜덤 |
+| 5b | 아이템 스폰 | 템플릿 `4` 1칸 | 위치는 템플릿, §2.4 하트 6종 중 RNG |
+| 5c | 방 연결 | 1·5행 둘레 벽 템플릿 2칸 인접 | `0` 구간에만 통로, `1` 뚫지 않음 |
 | 6 | Validation 분리 | 벽 방향 Move propose | execute 전 Validator 거부, fallback |
 | 7 | 일괄 Resolve | 플레이어+적 1턴 | action_queue 확정 후 1회 resolve + 1회 render |
 | 8 | 뷰포트 | 80x24 vs 200x50 터미널 | 월드 80×45 동일, `viewport` 크기만 변화 |
@@ -487,10 +537,10 @@ User keyDown → KeyListener → InputHandler.parse_key
 
 ### **8.2. 단위 테스트 파일 (후속 구현)**
 
-* `tests/test_room_template_loader.py` — TXT 0/1/2/3 파싱, 5 배수 검증
-* `tests/test_meta_grid_placement.py` — 5×5 메타 칸 배치·병합
+* `tests/test_room_template_loader.py` — TXT 0/1/2/3/4 파싱, 5 배수 검증
+* `tests/test_meta_grid_placement.py` — 5×5 메타 칸 배치·병합·`0` 개구부 연결
 * `tests/test_floor_manager.py` — 3층 전환, 계단 트리거
-* `tests/test_spawn_resolver.py` — `3` 마커 + 층별 스탯 RNG
+* `tests/test_spawn_resolver.py` — `3` 마커 + 층별 스탯 RNG, `4` 마커 + 하트 6종 RNG
 * `tests/test_action_validator.py` — propose 후 검증, execute 미호출
 * `tests/test_turn_resolver.py` — queue → resolve_all → 단일 render
 * `tests/test_viewport_size.py` — 80×45 월드 + 터미널별 뷰포트

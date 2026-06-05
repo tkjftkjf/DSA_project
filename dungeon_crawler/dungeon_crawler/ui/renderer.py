@@ -18,6 +18,13 @@ class Renderer:
     PLAYER = "🧙"
 
     @staticmethod
+    def compute_viewport_size(cols: int, rows: int) -> tuple[int, int]:
+        map_panel_width = max(20, (cols * 2) // 3 - 4)
+        viewport_width = max(20, map_panel_width - 2)
+        viewport_height = max(8, rows - 4)
+        return viewport_width, viewport_height
+
+    @staticmethod
     def compute_viewport(
         map_width: int,
         map_height: int,

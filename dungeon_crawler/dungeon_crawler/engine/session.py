@@ -1,21 +1,11 @@
 from __future__ import annotations
 
-import random
-
+from dungeon_crawler.engine.floor_manager import FloorManager
 from dungeon_crawler.engine.game_manager import GameManager
-from dungeon_crawler.models.dungeon import Dungeon
+from dungeon_crawler.engine.spawn_resolver import SpawnResolver
 from dungeon_crawler.models.entity import Entity
 from dungeon_crawler.models.inventory import Inventory
 from dungeon_crawler.models.item import Item
-
-HEART_ITEMS = [
-    Item(name="heart_red", icon="❤️", heal_amount=3),
-    Item(name="heart_orange", icon="🧡", heal_amount=5),
-    Item(name="heart_yellow", icon="💛", heal_amount=10),
-    Item(name="heart_green", icon="💚", heal_amount=15),
-    Item(name="heart_blue", icon="💙", heal_amount=20),
-    Item(name="heart_purple", icon="💜", heal_amount=30),
-]
 
 
 def compute_score(player: Entity, turn_id: int, kills: int) -> int:
@@ -23,18 +13,17 @@ def compute_score(player: Entity, turn_id: int, kills: int) -> int:
 
 
 def create_game_manager(seed: int = 7) -> GameManager:
-    dungeon = Dungeon(width=30, height=20)
-    dungeon.generate_rooms(room_count=10, seed=seed, extra_cycles=2)
+    base_seed = 2026 + seed
+    floor_manager = FloorManager.create(base_seed=seed, room_count=10, extra_cycles=2)
+    dungeon = floor_manager.current_dungeon
+    spawn_resolver = SpawnResolver(base_seed=base_seed)
 
-    floor = sorted(dungeon.floor_tiles)
-    if not floor:
-        raise RuntimeError("Dungeon has no floor tiles")
-
-    player_pos = floor[0]
+    if dungeon.start_spawn is None:
+        raise RuntimeError("Floor 1 has no start spawn")
     player = Entity(
         name="player",
-        x=player_pos[0],
-        y=player_pos[1],
+        x=dungeon.start_spawn[0],
+        y=dungeon.start_spawn[1],
         hp=20,
         max_hp=20,
         atk=5,
@@ -46,33 +35,31 @@ def create_game_manager(seed: int = 7) -> GameManager:
         player.inventory.add_item(Item(name="arrow", icon="🏹"))
 
     enemies: list[Entity] = []
-    enemy_spots = [floor[min(i, len(floor) - 1)] for i in (8, 14, 20, 26)]
-    for idx, pos in enumerate(enemy_spots[:3]):
-        enemies.append(
-            Entity(
-                name=f"enemy{idx + 1}",
-                x=pos[0],
-                y=pos[1],
-                hp=8 + idx * 2,
-                max_hp=8 + idx * 2,
-                atk=2 + idx,
-                defense=idx % 2,
-                exp_reward=5 + idx * 3,
-            )
+    ground_items: dict[tuple[int, int], list[Item]] = {}
+
+    for floor_idx, floor_dungeon in enumerate(floor_manager.floors):
+        floor_id = floor_idx + 1
+        boss_indices = {0} if floor_id == 3 and floor_dungeon.enemy_spawn_tiles else set()
+        floor_enemies = spawn_resolver.spawn_enemies(
+            floor_dungeon.enemy_spawn_tiles,
+            floor_id=floor_id,
+            boss_indices=boss_indices,
         )
+        enemies.extend(floor_enemies)
+        floor_items = spawn_resolver.spawn_ground_items(
+            floor_dungeon.item_spawn_tiles,
+            floor_id=floor_id,
+        )
+        for pos, items in floor_items.items():
+            ground_items.setdefault(pos, []).extend(items)
 
     manager = GameManager(
         dungeon=dungeon,
+        floor_manager=floor_manager,
         player=player,
         entities=[player, *enemies],
-        base_seed=2026 + seed,
+        base_seed=base_seed,
+        ground_items=ground_items,
     )
-
-    rng = random.Random(seed)
-    loot_spots = rng.sample(floor[1:], k=min(4, len(floor) - 1))
-    for spot in loot_spots:
-        item = rng.choice(HEART_ITEMS)
-        manager.ground_items.setdefault(spot, []).append(item)
-
     manager.logs.append("던전에 진입했습니다.")
     return manager

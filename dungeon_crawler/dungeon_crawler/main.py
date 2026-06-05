@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import os
+import sys
+
 from dungeon_crawler.engine.game_manager import GameManager
 from dungeon_crawler.engine.input_handler import InputHandler
 from dungeon_crawler.engine.session import compute_score, create_game_manager
@@ -15,6 +18,7 @@ def main() -> int:
         if not show_main_menu(leaderboard):
             return 0
         manager = create_game_manager()
+        manager.debug = "--debug" in sys.argv or os.environ.get("DUNGEON_DEBUG") == "1"
         result = run_game_loop(manager)
         score = compute_score(manager.player, manager.turn_manager.turn_id, manager.kills)
         leaderboard.add(
@@ -104,7 +108,7 @@ def run_game_loop(manager: GameManager) -> str:
 
 
 def _render_frame(manager: GameManager) -> None:
-    dungeon = manager.dungeon
+    dungeon = manager.active_dungeon
     grid = [[Renderer.WALL for _ in range(dungeon.width)] for _ in range(dungeon.height)]
     for x, y in dungeon.floor_tiles:
         grid[y][x] = Renderer.FLOOR
@@ -120,8 +124,7 @@ def _render_frame(manager: GameManager) -> None:
         from rich.console import Console
 
         console = Console()
-        width = max(20, console.size.width // 2 - 4)
-        height = max(8, console.size.height - 6)
+        width, height = Renderer.compute_viewport_size(console.size.width, console.size.height)
     except ModuleNotFoundError:
         width, height = 20, 12
 

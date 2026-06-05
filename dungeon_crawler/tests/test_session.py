@@ -19,7 +19,9 @@ class SessionTest(unittest.TestCase):
         manager = create_game_manager(seed=11)
         self.assertGreaterEqual(len(manager.entities), 2)
         self.assertTrue(any(e is manager.player for e in manager.entities))
-        self.assertTrue(manager.ground_items)
+        self.assertEqual(manager.active_dungeon.width, 80)
+        self.assertEqual(manager.active_dungeon.height, 45)
+        self.assertIsNotNone(manager.floor_manager)
 
 
 if __name__ == "__main__":

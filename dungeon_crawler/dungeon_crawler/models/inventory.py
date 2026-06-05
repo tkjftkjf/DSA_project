@@ -36,3 +36,10 @@ class Inventory:
             del self.counts[item.name]
         return item
 
+    def remove_first_by_name(self, item_name: str) -> tuple[int, Item]:
+        for idx, slot in enumerate(self.slots):
+            if slot is not None and slot.name == item_name:
+                item = self.remove_from_slot(idx)
+                return idx, item
+        raise ValueError(f"Item '{item_name}' not found")
+

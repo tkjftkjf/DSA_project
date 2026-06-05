@@ -33,3 +33,20 @@ class Entity:
         self.hp = min(self.max_hp, self.hp + amount)
         return self.hp - before
 
+    def gain_exp(self, amount: int) -> bool:
+        """
+        Gain exp and apply a simple level-up rule.
+        Returns True if leveled up.
+        """
+        self.exp += amount
+        need = self.level * 10
+        if self.exp < need:
+            return False
+        self.exp -= need
+        self.level += 1
+        self.max_hp += 2
+        self.atk += 1
+        self.defense += 1
+        self.hp = self.max_hp
+        return True
+

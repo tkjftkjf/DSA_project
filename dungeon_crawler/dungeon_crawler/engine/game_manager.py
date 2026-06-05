@@ -16,6 +16,7 @@ from dungeon_crawler.engine.undo_manager import UndoManager
 from dungeon_crawler.models.dungeon import Dungeon
 from dungeon_crawler.models.entity import Entity
 from dungeon_crawler.models.item import Item
+from dungeon_crawler.ui.renderer import Renderer
 from dungeon_crawler.utils.action_validator import ActionValidator, GameContext
 from dungeon_crawler.utils.pathfinding import find_path
 
@@ -242,7 +243,8 @@ class GameManager:
         ]
         if self.show_inventory:
             lines.append(_inventory_lines(self.player))
-        return "\n".join(line for line in lines if line)
+        stats = "\n".join(line for line in lines if line)
+        return f"{stats}\n\n{Renderer.format_controls_help()}"
 
     def _resolve_combat(self, attacker: Entity, defender: Entity, ranged: bool = False) -> bool:
         action = CombatAction(

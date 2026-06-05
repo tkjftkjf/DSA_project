@@ -45,8 +45,6 @@ def show_main_menu(leaderboard: Leaderboard) -> bool:
 def run_game_loop(manager: GameManager) -> str:
     player = manager.player
     input_handler = InputHandler()
-    manager.logs.append("조작: w/a/s/d, c/v, u/r, 1~0, i, esc")
-
     while player.is_alive:
         if manager.dungeon_cleared:
             return "victory"

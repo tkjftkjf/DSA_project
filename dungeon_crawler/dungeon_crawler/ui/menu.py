@@ -30,7 +30,13 @@ def format_leaderboard_text(leaderboard: Leaderboard, width: int) -> str:
             )
     lines.append("")
     lines.append(f"Terminal: {width} cols")
-    lines.append("Press Enter to start / q to quit")
+    lines.append("")
+    lines.append("── 조작 안내 ──")
+    lines.append("Enter: 게임 시작 | q: 종료")
+    lines.append("인게임: 키 입력 후 Enter (한 줄에 한 키)")
+    lines.append("w/a/s/d 이동 | c/v→방향 공격")
+    lines.append("1~9,0 아이템 | i 인벤 | u/r Undo")
+    lines.append("q,esc 포기 | 3층 계단=클리어")
     return "\n".join(lines)
 
 

@@ -24,6 +24,21 @@ class Renderer:
     PLAYER = "🧙"
 
     @staticmethod
+    def format_controls_help() -> str:
+        """Compact in-game control reference for the Status panel."""
+        return "\n".join(
+            [
+                "── 조작 (키+Enter) ──",
+                "w/a/s/d: 이동 (적 칸=근접공격)",
+                "c → 방향: 근접 (인접만, 실패 시 턴X)",
+                "v → 방향: 원거리 (화살-1, 빗나가도 소모)",
+                "1~9,0: 슬롯 사용 | i: 인벤토리",
+                "u/r: Undo/Redo | q,esc: 포기",
+                "이동 성공 시: 자동 줍기·계단 하강",
+            ]
+        )
+
+    @staticmethod
     def compute_layout_height(terminal_rows: int) -> int:
         """Rows available for the bordered Map/Status/Log panel block."""
         return max(1, terminal_rows - INPUT_RESERVE_ROWS)

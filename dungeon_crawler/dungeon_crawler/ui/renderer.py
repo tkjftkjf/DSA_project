@@ -18,6 +18,7 @@ class Viewport:
 class Renderer:
     WALL = "🟫"
     FLOOR = "⬛"
+    STAIR = "🪜"
     PLAYER = "🧙"
 
     @staticmethod

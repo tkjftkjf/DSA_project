@@ -314,12 +314,16 @@ class GameManager:
         if not self.floor_manager.is_on_stairs(self.player.pos):
             return
         if not self.floor_manager.can_descend():
+            self.logs.append("더 이상 내려갈 수 없습니다.")
             return
+        before_floor = self.floor_manager.current_floor
         target = self.floor_manager.descend()
         if target is None:
             return
         self.player.set_pos(*target)
-        self.logs.append(f"Floor {self.floor_manager.current_floor}로 내려갔습니다.")
+        self.logs.append(
+            f"계단을 통해 Floor {before_floor} -> Floor {self.floor_manager.current_floor}로 내려갔습니다."
+        )
 
     def _propose_enemy_action(self, enemy: Entity, state: dict) -> Optional[Action]:
         if self._adjacent(enemy.pos, self.player.pos):

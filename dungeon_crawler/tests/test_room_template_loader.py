@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import random
 import tempfile
 import unittest
 from pathlib import Path
@@ -7,6 +8,7 @@ from pathlib import Path
 from dungeon_crawler.models.room_template import (
     CELL_SIZE,
     RoomTemplateLoader,
+    build_stamp_grid,
     find_connection_offsets,
 )
 
@@ -22,6 +24,10 @@ class RoomTemplateLoaderTest(unittest.TestCase):
             self.assertEqual(template.room_type, "normal")
             self.assertEqual(template.width % CELL_SIZE, 0)
             self.assertEqual(template.height % CELL_SIZE, 0)
+
+    def test_loads_start_and_stair_templates(self) -> None:
+        self.assertGreaterEqual(len(self.loader.load_all("start")), 1)
+        self.assertGreaterEqual(len(self.loader.load_all("stair")), 1)
 
     def test_parses_tile_kinds(self) -> None:
         template = self.loader.load("normal", "2")
@@ -52,6 +58,13 @@ class RoomTemplateLoaderTest(unittest.TestCase):
         for offset in offsets:
             self.assertEqual(left.cells[offset][left.width - 1], 0)
             self.assertEqual(right.cells[offset][0], 0)
+
+    def test_build_stamp_grid_composes_2x1_from_5x5_templates(self) -> None:
+        normals = self.loader.load_all("normal")
+        stamps = build_stamp_grid(2, 1, normals, random.Random(0))
+        self.assertEqual(len(stamps), 2)
+        self.assertEqual(stamps[0][0:2], (0, 0))
+        self.assertEqual(stamps[1][0:2], (1, 0))
 
 
 if __name__ == "__main__":

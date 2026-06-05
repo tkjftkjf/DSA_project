@@ -1,10 +1,11 @@
 from __future__ import annotations
 
+import random
 from dataclasses import dataclass
 from pathlib import Path
 
-WORLD_WIDTH = 80
-WORLD_HEIGHT = 45
+WORLD_WIDTH = 50
+WORLD_HEIGHT = 30
 CELL_SIZE = 5
 META_COLS = WORLD_WIDTH // CELL_SIZE
 META_ROWS = WORLD_HEIGHT // CELL_SIZE
@@ -110,6 +111,38 @@ class RoomTemplateLoader:
             height=len(lines),
             cells=tuple(cells),
         )
+
+
+def pick_template_for_meta_size(
+    templates: list[RoomTemplate],
+    meta_width: int,
+    meta_height: int,
+    rng: random.Random,
+) -> RoomTemplate | None:
+    target_w = meta_width * CELL_SIZE
+    target_h = meta_height * CELL_SIZE
+    matches = [t for t in templates if t.width == target_w and t.height == target_h]
+    if not matches:
+        return None
+    return rng.choice(matches)
+
+
+def build_stamp_grid(
+    meta_width: int,
+    meta_height: int,
+    templates: list[RoomTemplate],
+    rng: random.Random,
+) -> list[tuple[int, int, RoomTemplate]]:
+    """Fill a meta-sized room with templates, preferring one large template when available."""
+    whole = pick_template_for_meta_size(templates, meta_width, meta_height, rng)
+    if whole is not None:
+        return [(0, 0, whole)]
+
+    stamps: list[tuple[int, int, RoomTemplate]] = []
+    for dy in range(meta_height):
+        for dx in range(meta_width):
+            stamps.append((dx, dy, rng.choice(templates)))
+    return stamps
 
 
 def find_connection_offsets(

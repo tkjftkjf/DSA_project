@@ -57,20 +57,16 @@ class FloorManager:
         if not self.can_descend():
             return None
         next_index = self.current_floor_index + 1
-        target = self.stair_links.get((self.current_floor_index, next_index))
+        next_floor = self.floors[next_index]
+        target = next_floor.start_spawn
         if target is None:
-            target = self.floors[next_index].start_spawn
-        self.current_floor_index = next_index
-        if target is None:
-            floors = sorted(self.floors[next_index].floor_tiles)
+            floors = sorted(next_floor.floor_tiles)
             target = floors[0] if floors else (0, 0)
+        self.current_floor_index = next_index
         return target
 
     def _link_stairs(self) -> None:
         for idx in range(len(self.floors) - 1):
-            current = self.floors[idx]
             nxt = self.floors[idx + 1]
-            up_pos = sorted(current.stair_tiles)[0] if current.stair_tiles else None
-            down_pos = sorted(nxt.stair_tiles)[0] if nxt.stair_tiles else nxt.start_spawn
-            if up_pos is not None and down_pos is not None:
-                self.stair_links[(idx, idx + 1)] = down_pos
+            if nxt.start_spawn is not None:
+                self.stair_links[(idx, idx + 1)] = nxt.start_spawn

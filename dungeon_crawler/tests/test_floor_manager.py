@@ -31,6 +31,16 @@ class FloorManagerTest(unittest.TestCase):
         self.assertFalse(manager.can_descend())
         self.assertIsNone(manager.descend())
 
+    def test_stair_links_land_on_next_floor_start(self) -> None:
+        manager = FloorManager.create(base_seed=7, room_count=8)
+        self.assertIn((0, 1), manager.stair_links)
+        self.assertIn((1, 2), manager.stair_links)
+        self.assertEqual(manager.stair_links[(0, 1)], manager.floors[1].start_spawn)
+        self.assertEqual(manager.stair_links[(1, 2)], manager.floors[2].start_spawn)
+        for floor in manager.floors:
+            self.assertTrue(floor.stair_tiles)
+            self.assertIsNotNone(floor.start_spawn)
+
 
 if __name__ == "__main__":
     unittest.main()

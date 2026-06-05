@@ -59,6 +59,20 @@ class GameplayFlowTest(unittest.TestCase):
         self.assertFalse(acted)
         self.assertEqual(self.manager.pending_attack_mode, "melee")
 
+    def test_stepping_on_stair_descends_when_floor_manager_present(self) -> None:
+        from dungeon_crawler.engine.floor_manager import FloorManager
+
+        manager = self.manager
+        manager.floor_manager = FloorManager.create(base_seed=99, room_count=6)
+        dungeon = manager.floor_manager.current_dungeon
+        stairs = sorted(dungeon.stair_tiles)[0]
+        manager.player.set_pos(stairs[0] - 1, stairs[1])
+        dungeon.floor_tiles.add((stairs[0] - 1, stairs[1]))
+
+        moved = manager.try_player_move(dx=1, dy=0)
+        self.assertTrue(moved)
+        self.assertEqual(manager.floor_manager.current_floor, 2)
+
     def test_kill_increments_kills_and_levels_up(self) -> None:
         self.enemy.hp = 1
         self.enemy.exp_reward = 20

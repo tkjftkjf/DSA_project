@@ -39,11 +39,9 @@ def create_game_manager(seed: int = 7) -> GameManager:
 
     for floor_idx, floor_dungeon in enumerate(floor_manager.floors):
         floor_id = floor_idx + 1
-        boss_indices = {0} if floor_id == 3 and floor_dungeon.enemy_spawn_tiles else set()
         floor_enemies = spawn_resolver.spawn_enemies(
             floor_dungeon.enemy_spawn_tiles,
             floor_id=floor_id,
-            boss_indices=boss_indices,
         )
         enemies.extend(floor_enemies)
         floor_items = spawn_resolver.spawn_ground_items(

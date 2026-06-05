@@ -112,6 +112,8 @@ def _render_frame(manager: GameManager) -> None:
     grid = [[Renderer.WALL for _ in range(dungeon.width)] for _ in range(dungeon.height)]
     for x, y in dungeon.floor_tiles:
         grid[y][x] = Renderer.FLOOR
+    for x, y in dungeon.stair_tiles:
+        grid[y][x] = Renderer.STAIR
     current_floor = manager.current_floor_id
     for pos, items in manager.active_ground_items.items():
         if items:

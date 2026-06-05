@@ -9,6 +9,7 @@ WORLD_HEIGHT = 30
 CELL_SIZE = 5
 META_COLS = WORLD_WIDTH // CELL_SIZE
 META_ROWS = WORLD_HEIGHT // CELL_SIZE
+START_TEMPLATE_SIZE = 5
 
 VALID_CHARS = frozenset("01234")
 
@@ -113,58 +114,26 @@ class RoomTemplateLoader:
         )
 
 
-def pick_template_for_meta_size(
-    templates: list[RoomTemplate],
-    meta_width: int,
-    meta_height: int,
-    rng: random.Random,
-) -> RoomTemplate | None:
-    target_w = meta_width * CELL_SIZE
-    target_h = meta_height * CELL_SIZE
-    matches = [t for t in templates if t.width == target_w and t.height == target_h]
+def start_templates_only(templates: list[RoomTemplate]) -> list[RoomTemplate]:
+    """Start rooms must be exactly 5x5."""
+    matches = [
+        template
+        for template in templates
+        if template.width == START_TEMPLATE_SIZE and template.height == START_TEMPLATE_SIZE
+    ]
     if not matches:
-        return None
-    return rng.choice(matches)
+        raise RuntimeError("start templates must include at least one 5x5 room")
+    return matches
 
 
-def build_stamp_grid(
-    meta_width: int,
-    meta_height: int,
-    templates: list[RoomTemplate],
-    rng: random.Random,
-) -> list[tuple[int, int, RoomTemplate]]:
-    """Fill a meta-sized room with templates, preferring one large template when available."""
-    whole = pick_template_for_meta_size(templates, meta_width, meta_height, rng)
-    if whole is not None:
-        return [(0, 0, whole)]
-
-    stamps: list[tuple[int, int, RoomTemplate]] = []
-    for dy in range(meta_height):
-        for dx in range(meta_width):
-            stamps.append((dx, dy, rng.choice(templates)))
-    return stamps
+def pick_room_template(templates: list[RoomTemplate], rng: random.Random) -> RoomTemplate:
+    if not templates:
+        raise RuntimeError("no room templates available")
+    return rng.choice(templates)
 
 
-def find_connection_offsets(
-    template_a: RoomTemplate,
-    template_b: RoomTemplate,
-    direction: str,
-) -> list[int]:
-    """
-    Return offsets along the shared edge where both templates have floor (0).
-    direction: a_to_b from A's perspective (east/south/west/north).
-    """
-    if direction == "east":
-        edge_a, edge_b = "east", "west"
-    elif direction == "west":
-        edge_a, edge_b = "west", "east"
-    elif direction == "south":
-        edge_a, edge_b = "south", "north"
-    elif direction == "north":
-        edge_a, edge_b = "north", "south"
-    else:
-        raise ValueError(f"unknown direction: {direction}")
-
-    openings_a = set(template_a.edge_openings(edge_a))
-    openings_b = set(template_b.edge_openings(edge_b))
-    return sorted(openings_a & openings_b)
+def template_world_rect(meta_col: int, meta_row: int, template: RoomTemplate) -> tuple[int, int, int, int]:
+    """Return inclusive world bounds (x0, y0, x1, y1) for a template anchored on a meta cell."""
+    x0 = meta_col * CELL_SIZE
+    y0 = meta_row * CELL_SIZE
+    return (x0, y0, x0 + template.width - 1, y0 + template.height - 1)

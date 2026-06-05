@@ -3,7 +3,7 @@ from __future__ import annotations
 import unittest
 
 from dungeon_crawler.models.dungeon import Dungeon
-from dungeon_crawler.models.room_template import WORLD_HEIGHT, WORLD_WIDTH
+from dungeon_crawler.models.room_template import START_TEMPLATE_SIZE, WORLD_HEIGHT, WORLD_WIDTH
 from dungeon_crawler.utils.pathfinding import find_path
 
 
@@ -60,19 +60,19 @@ class MetaGridPlacementTest(unittest.TestCase):
             self.assertTrue(dungeon.stair_tiles)
             self.assertIsNotNone(dungeon.start_spawn)
 
-    def test_normal_rooms_can_merge_into_larger_spaces(self) -> None:
-        merged_found = False
-        for seed in range(20):
-            dungeon = Dungeon()
-            dungeon.generate_floor(floor_id=1, room_count=10, seed=seed, merge_chance=0.8)
-            for node in dungeon.room_nodes.values():
-                if node.room_role == "normal" and (node.meta_width > 1 or node.meta_height > 1):
-                    merged_found = True
-                    self.assertGreater(len(node.tiles), 25)
-                    break
-            if merged_found:
-                break
-        self.assertTrue(merged_found)
+    def test_start_room_uses_only_5x5_template(self) -> None:
+        dungeon = Dungeon()
+        dungeon.generate_floor(floor_id=1, room_count=8, seed=7)
+        start = next(node for node in dungeon.room_nodes.values() if node.room_role == "start")
+        self.assertEqual(start.template_width, START_TEMPLATE_SIZE)
+        self.assertEqual(start.template_height, START_TEMPLATE_SIZE)
+        self.assertNotIn("+", start.template_name)
+
+    def test_each_room_uses_single_template(self) -> None:
+        dungeon = Dungeon()
+        dungeon.generate_floor(floor_id=1, room_count=8, seed=7)
+        for node in dungeon.room_nodes.values():
+            self.assertNotIn("+", node.template_name)
 
     def test_start_spawn_exists_on_floor1(self) -> None:
         dungeon = Dungeon()
@@ -83,7 +83,7 @@ class MetaGridPlacementTest(unittest.TestCase):
     def test_start_spawn_can_reach_stairs(self) -> None:
         for seed in range(50):
             dungeon = Dungeon()
-            dungeon.generate_floor(floor_id=1, room_count=10, seed=seed, merge_chance=0.4)
+            dungeon.generate_floor(floor_id=1, room_count=10, seed=seed)
             assert dungeon.start_spawn is not None
             stair = next(iter(dungeon.stair_tiles))
             path = find_path(dungeon, dungeon.start_spawn, stair)

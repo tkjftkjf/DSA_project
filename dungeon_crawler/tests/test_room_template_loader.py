@@ -7,9 +7,11 @@ from pathlib import Path
 
 from dungeon_crawler.models.room_template import (
     CELL_SIZE,
+    START_TEMPLATE_SIZE,
     RoomTemplateLoader,
-    build_stamp_grid,
-    find_connection_offsets,
+    pick_room_template,
+    start_templates_only,
+    template_world_rect,
 )
 
 
@@ -50,21 +52,23 @@ class RoomTemplateLoaderTest(unittest.TestCase):
         self.assertNotIn(0, north)
         self.assertNotIn(4, north)
 
-    def test_find_connection_offsets_requires_both_zero(self) -> None:
-        left = self.loader.load("start", "1")
-        right = self.loader.load("normal", "0")
-        offsets = find_connection_offsets(left, right, "east")
-        self.assertEqual(offsets, [0, 1, 2, 3, 4])
-        for offset in offsets:
-            self.assertEqual(left.cells[offset][left.width - 1], 0)
-            self.assertEqual(right.cells[offset][0], 0)
+    def test_start_templates_only_accepts_5x5(self) -> None:
+        starts = self.loader.load_all("start")
+        filtered = start_templates_only(starts)
+        self.assertGreaterEqual(len(filtered), 1)
+        for template in filtered:
+            self.assertEqual(template.width, START_TEMPLATE_SIZE)
+            self.assertEqual(template.height, START_TEMPLATE_SIZE)
 
-    def test_build_stamp_grid_composes_2x1_from_5x5_templates(self) -> None:
+    def test_pick_room_template_returns_member_of_pool(self) -> None:
         normals = self.loader.load_all("normal")
-        stamps = build_stamp_grid(2, 1, normals, random.Random(0))
-        self.assertEqual(len(stamps), 2)
-        self.assertEqual(stamps[0][0:2], (0, 0))
-        self.assertEqual(stamps[1][0:2], (1, 0))
+        picked = pick_room_template(normals, random.Random(0))
+        self.assertIn(picked, normals)
+
+    def test_template_world_rect_uses_meta_anchor(self) -> None:
+        template = self.loader.load("normal", "0")
+        rect = template_world_rect(2, 1, template)
+        self.assertEqual(rect, (10, 5, 14, 9))
 
 
 if __name__ == "__main__":

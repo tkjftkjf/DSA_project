@@ -42,6 +42,12 @@ class DungeonGenerationTest(unittest.TestCase):
         dungeon.generate_rooms(room_count=6, seed=21, extra_cycles=1)
         self.assertGreaterEqual(len(dungeon.edges), len(dungeon.room_nodes))
 
+    def test_corridors_expand_floor_tiles(self) -> None:
+        dungeon = Dungeon(width=20, height=20)
+        dungeon.generate_rooms(room_count=6, seed=5, extra_cycles=0)
+        room_tile_count = sum(len(n.tiles) for n in dungeon.room_nodes.values())
+        self.assertGreater(len(dungeon.floor_tiles), room_tile_count)
+
 
 if __name__ == "__main__":
     unittest.main()

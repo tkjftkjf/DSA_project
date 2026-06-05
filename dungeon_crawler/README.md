@@ -40,10 +40,11 @@ docker run --rm dungeon-crawler python -m unittest discover -s tests -t . -p "te
 
 ## Implemented Core Features
 
-- Dungeon room graph generation (preset room templates + spanning tree + cycle)
+- Dungeon room graph generation (preset room templates + spanning tree + cycle + corridors)
 - Undo/Redo two-stack system with turn markers
 - FIFO turn manager + deterministic per-turn RNG seed
 - Inventory list/hash-map model + loot/consume action
-- A* pathfinding with dynamic blockers
-- Insertion-sort leaderboard
-- Rich 기반 viewport renderer primitives
+- A* pathfinding with dynamic blockers + enemy vision/wander
+- Insertion-sort leaderboard with JSON persistence
+- Rich 기반 dynamic viewport renderer + main menu leaderboard screen
+- Turn loop: move/combat(C/V+WASD), item use, undo/redo, victory/defeat scoring

@@ -37,7 +37,11 @@ class Dungeon:
             self._blocked.discard((x, y))
 
     def is_walkable(self, x: int, y: int) -> bool:
-        return self.in_bounds(x, y) and (x, y) not in self._blocked
+        if not self.in_bounds(x, y) or (x, y) in self._blocked:
+            return False
+        if self.floor_tiles:
+            return (x, y) in self.floor_tiles
+        return True
 
     def generate_rooms(
         self,
@@ -90,6 +94,7 @@ class Dungeon:
 
         self._build_spanning_tree(rng)
         self._add_extra_cycles(rng, extra_cycles=extra_cycles)
+        self._carve_corridors()
 
     def _build_spanning_tree(self, rng: random.Random) -> None:
         room_ids = list(self.room_nodes.keys())
@@ -137,6 +142,26 @@ class Dungeon:
         rng.shuffle(candidates)
         for edge in candidates[:extra_cycles]:
             self.edges.add(tuple(sorted(edge)))
+
+    def _carve_corridors(self) -> None:
+        for a, b in self.edges:
+            start = self.room_nodes[a].center
+            end = self.room_nodes[b].center
+            self._carve_l_corridor(start, end)
+
+    def _carve_l_corridor(self, start: tuple[int, int], end: tuple[int, int]) -> None:
+        x, y = start
+        ex, ey = end
+        while x != ex:
+            if self.in_bounds(x, y):
+                self.floor_tiles.add((x, y))
+            x += 1 if ex > x else -1
+        while y != ey:
+            if self.in_bounds(x, y):
+                self.floor_tiles.add((x, y))
+            y += 1 if ey > y else -1
+        if self.in_bounds(ex, ey):
+            self.floor_tiles.add((ex, ey))
 
     @staticmethod
     def _manhattan(a: tuple[int, int], b: tuple[int, int]) -> int:

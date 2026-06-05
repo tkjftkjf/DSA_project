@@ -13,7 +13,10 @@ from dungeon_crawler.engine.undo_manager import UndoManager
 from dungeon_crawler.models.dungeon import Dungeon
 from dungeon_crawler.models.entity import Entity
 from dungeon_crawler.models.item import Item
+from dungeon_crawler.utils.decorators import validate_action
 from dungeon_crawler.utils.pathfinding import find_path
+
+ENEMY_VISION_RADIUS = 6
 
 
 @dataclass
@@ -27,6 +30,7 @@ class GameManager:
     ground_items: dict[tuple[int, int], list[Item]] = field(default_factory=dict)
     pending_attack_mode: str | None = None
     kills: int = 0
+    show_inventory: bool = False
 
     def __post_init__(self) -> None:
         self.turn_manager = TurnManager(base_seed=self.base_seed, turn_id=0)
@@ -72,6 +76,7 @@ class GameManager:
             return False
         return True
 
+    @validate_action
     def try_player_move(self, dx: int, dy: int) -> bool:
         target = (self.player.x + dx, self.player.y + dy)
         enemy = self._enemy_at(target)
@@ -94,6 +99,7 @@ class GameManager:
         self._try_auto_loot(self.player.pos)
         return True
 
+    @validate_action
     def try_player_attack(self, dx: int, dy: int) -> bool:
         mode = self.pending_attack_mode
         if mode is None:
@@ -135,28 +141,35 @@ class GameManager:
                 self._resolve_combat(enemy, self.player)
                 continue
 
-            # A*: walls + items + other monsters as dynamic blockers
-            blockers = set(self.ground_items.keys())
-            blockers |= {e.pos for e in self.entities if e is not enemy and e is not self.player and e.is_alive}
-            path = find_path(self.dungeon, enemy.pos, self.player.pos, blocked=blockers)
-            if len(path) >= 2:
-                nxt = path[1]
-                dx = nxt[0] - enemy.x
-                dy = nxt[1] - enemy.y
-            else:
+            if self._manhattan(enemy.pos, self.player.pos) > ENEMY_VISION_RADIUS:
                 dx, dy = random.choice([(1, 0), (-1, 0), (0, 1), (0, -1)])
+                if not self._enemy_step(enemy, dx, dy):
+                    self.logs.append(f"{enemy.name} 배회 실패 (막힘)")
+                continue
 
-            action = MoveAction(
-                turn_id=self.turn_manager.turn_id,
-                entity=enemy,
-                dungeon=self.dungeon,
-                dx=dx,
-                dy=dy,
-            )
-            before = enemy.pos
-            self.execute_action(action)
-            if enemy.pos != before:
-                self.logs.append(f"{enemy.name} 이동: {before} -> {enemy.pos}")
+            blockers = set(self.ground_items.keys())
+            blockers |= {
+                e.pos
+                for e in self.entities
+                if e is not enemy and e is not self.player and e.is_alive
+            }
+            path = find_path(self.dungeon, enemy.pos, self.player.pos, blocked=blockers)
+            if len(path) < 2:
+                path = find_path(
+                    self.dungeon,
+                    enemy.pos,
+                    self.player.pos,
+                    blocked=blockers | {e.pos for e in self.entities if e is not enemy and e.is_alive},
+                )
+            if len(path) < 2:
+                self.logs.append(f"{enemy.name} 대기 (경로 없음)")
+                continue
+
+            nxt = path[1]
+            dx = nxt[0] - enemy.x
+            dy = nxt[1] - enemy.y
+            if not self._enemy_step(enemy, dx, dy):
+                self.logs.append(f"{enemy.name} 대기 (이동 불가)")
 
     def all_enemies_defeated(self) -> bool:
         return not any(e is not self.player and e.is_alive for e in self.entities)
@@ -170,15 +183,18 @@ class GameManager:
             mode_line = "Mode: 근접(C) - WASD로 방향 선택\n"
         elif self.pending_attack_mode == "ranged":
             mode_line = "Mode: 원거리(V) - WASD로 방향 선택\n"
-        return (
-            f"{mode_line}"
-            f"Turn: {self.turn_manager.turn_id}\n"
-            f"HP: {self.player.hp}/{self.player.max_hp}\n"
-            f"ATK/DEF: {self.player.atk}/{self.player.defense}\n"
-            f"EXP/LV: {self.player.exp}/{self.player.level}\n"
-            f"Kills: {self.kills}\n"
-            f"Arrows: {arrows}"
-        )
+        lines = [
+            mode_line.rstrip("\n") if mode_line else "",
+            f"Turn: {self.turn_manager.turn_id}",
+            f"HP: {self.player.hp}/{self.player.max_hp}",
+            f"ATK/DEF: {self.player.atk}/{self.player.defense}",
+            f"EXP/LV: {self.player.exp}/{self.player.level}",
+            f"Kills: {self.kills}",
+            f"Arrows: {arrows}",
+        ]
+        if self.show_inventory:
+            lines.append(_inventory_lines(self.player))
+        return "\n".join(line for line in lines if line)
 
     def _resolve_combat(self, attacker: Entity, defender: Entity, ranged: bool = False) -> bool:
         action = CombatAction(
@@ -245,7 +261,42 @@ class GameManager:
             if enemy is not None:
                 return enemy
 
+    def _enemy_step(self, enemy: Entity, dx: int, dy: int) -> bool:
+        target = (enemy.x + dx, enemy.y + dy)
+        if target == self.player.pos:
+            return self._resolve_combat(enemy, self.player)
+        if self._enemy_at(target) is not None:
+            return False
+        action = MoveAction(
+            turn_id=self.turn_manager.turn_id,
+            entity=enemy,
+            dungeon=self.dungeon,
+            dx=dx,
+            dy=dy,
+        )
+        before = enemy.pos
+        self.execute_action(action)
+        if enemy.pos != before:
+            self.logs.append(f"{enemy.name} 이동: {before} -> {enemy.pos}")
+            return True
+        return False
+
     @staticmethod
     def _adjacent(a: tuple[int, int], b: tuple[int, int]) -> bool:
         return abs(a[0] - b[0]) + abs(a[1] - b[1]) == 1
+
+    @staticmethod
+    def _manhattan(a: tuple[int, int], b: tuple[int, int]) -> int:
+        return abs(a[0] - b[0]) + abs(a[1] - b[1])
+
+
+def _inventory_lines(player: Entity) -> str:
+    if player.inventory is None:
+        return "Inventory: (none)"
+    slots: list[str] = []
+    for idx, item in enumerate(player.inventory.slots, start=1):
+        key = "0" if idx == 10 else str(idx)
+        label = f"{item.icon}" if item else "-"
+        slots.append(f"{key}:{label}")
+    return "Inventory: " + " ".join(slots)
 

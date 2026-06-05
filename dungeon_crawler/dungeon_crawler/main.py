@@ -3,7 +3,6 @@ from __future__ import annotations
 from dungeon_crawler.engine.game_manager import GameManager
 from dungeon_crawler.engine.input_handler import InputHandler
 from dungeon_crawler.engine.session import compute_score, create_game_manager
-from dungeon_crawler.models.entity import Entity
 from dungeon_crawler.ui.menu import render_main_menu
 from dungeon_crawler.ui.renderer import Renderer
 from dungeon_crawler.utils.leaderboard import Leaderboard, ScoreEntry
@@ -72,7 +71,9 @@ def run_game_loop(manager: GameManager) -> str:
             manager.redo_turn()
             continue
         if cmd.kind == "toggle_inventory":
-            manager.logs.append(_inventory_text(player))
+            manager.show_inventory = not manager.show_inventory
+            state = "표시" if manager.show_inventory else "숨김"
+            manager.logs.append(f"인벤토리 {state}")
             continue
         if cmd.kind == "use_slot":
             key = str(cmd.payload)
@@ -100,17 +101,6 @@ def run_game_loop(manager: GameManager) -> str:
                 return "defeat"
 
     return "defeat"
-
-
-def _inventory_text(player: Entity) -> str:
-    if player.inventory is None:
-        return "인벤토리가 없습니다."
-    slots = []
-    for idx, item in enumerate(player.inventory.slots, start=1):
-        key = "0" if idx == 10 else str(idx)
-        label = f"{item.icon} {item.name}" if item else "(empty)"
-        slots.append(f"{key}:{label}")
-    return "인벤토리\n" + "\n".join(slots)
 
 
 def _render_frame(manager: GameManager) -> None:

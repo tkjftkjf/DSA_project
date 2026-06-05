@@ -3,35 +3,35 @@ from __future__ import annotations
 from dungeon_crawler.generation.geometry import manhattan
 from dungeon_crawler.generation.types import RoomAnchor, RoomRole
 
-MetaCell = tuple[int, int]
+Anchor = tuple[int, int]
 
 
 def assign_room_anchors(
-    meta_cells: set[MetaCell],
+    anchors: set[Anchor],
     *,
     room_count: int,
 ) -> list[RoomAnchor]:
     """Assign one start, one stair, and the rest as normal rooms."""
-    cells = sorted(meta_cells)
-    start_cell = min(cells, key=lambda cell: (cell[1], cell[0]))
-    stair_cell = max(cells, key=lambda cell: manhattan(cell, start_cell))
-    if stair_cell == start_cell:
-        stair_cell = max(
-            (cell for cell in cells if cell != start_cell),
-            key=lambda cell: manhattan(cell, start_cell),
+    cells = sorted(anchors)
+    start_pos = min(cells, key=lambda cell: (cell[1], cell[0]))
+    stair_pos = max(cells, key=lambda cell: manhattan(cell, start_pos))
+    if stair_pos == start_pos:
+        stair_pos = max(
+            (cell for cell in cells if cell != start_pos),
+            key=lambda cell: manhattan(cell, start_pos),
         )
 
-    reserved = {start_cell, stair_cell}
-    normal_cells = [cell for cell in cells if cell not in reserved]
+    reserved = {start_pos, stair_pos}
+    normal_positions = [cell for cell in cells if cell not in reserved]
 
-    anchors: list[RoomAnchor] = [
-        RoomAnchor(meta_col=start_cell[0], meta_row=start_cell[1], role=RoomRole.START),
-        RoomAnchor(meta_col=stair_cell[0], meta_row=stair_cell[1], role=RoomRole.STAIR),
+    room_anchors: list[RoomAnchor] = [
+        RoomAnchor(x=start_pos[0], y=start_pos[1], role=RoomRole.START),
+        RoomAnchor(x=stair_pos[0], y=stair_pos[1], role=RoomRole.STAIR),
     ]
-    for col, row in normal_cells[: room_count - 2]:
-        anchors.append(RoomAnchor(meta_col=col, meta_row=row, role=RoomRole.NORMAL))
+    for x, y in normal_positions[: room_count - 2]:
+        room_anchors.append(RoomAnchor(x=x, y=y, role=RoomRole.NORMAL))
 
-    if len(anchors) < room_count:
+    if len(room_anchors) < room_count:
         raise RuntimeError("Failed to build required room anchors")
 
-    return anchors[:room_count]
+    return room_anchors[:room_count]

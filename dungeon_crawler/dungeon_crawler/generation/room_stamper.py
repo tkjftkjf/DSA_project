@@ -1,7 +1,6 @@
 from __future__ import annotations
 
 from dungeon_crawler.generation.types import PlacedRoom, RoomRole, RoomStamp
-from dungeon_crawler.models.room_template import CELL_SIZE
 
 
 def stamp_room(
@@ -15,8 +14,8 @@ def stamp_room(
     template = placed.template
     stamp = RoomStamp(room_id=placed.room_id)
 
-    origin_x = anchor.meta_col * CELL_SIZE
-    origin_y = anchor.meta_row * CELL_SIZE
+    origin_x = anchor.x
+    origin_y = anchor.y
 
     for ty in range(template.height):
         for tx in range(template.width):

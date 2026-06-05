@@ -10,23 +10,23 @@ from dungeon_crawler.utils.pathfinding import find_path
 class MetaGridPlacementTest(unittest.TestCase):
     def test_floor1_world_size(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=1, room_count=8, seed=7)
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=7)
         self.assertEqual(dungeon.width, WORLD_WIDTH)
         self.assertEqual(dungeon.height, WORLD_HEIGHT)
 
     def test_rooms_are_spread_across_map(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=1, room_count=8, seed=7)
-        cols = {node.meta_col for node in dungeon.room_nodes.values()}
-        rows = {node.meta_row for node in dungeon.room_nodes.values()}
-        self.assertGreaterEqual(len(cols), 3)
-        self.assertGreaterEqual(len(rows), 3)
-        xs = [x for x, _ in dungeon.floor_tiles]
-        self.assertGreater(max(xs) - min(xs), 10)
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=7)
+        anchor_xs = {node.anchor_x for node in dungeon.room_nodes.values()}
+        anchor_ys = {node.anchor_y for node in dungeon.room_nodes.values()}
+        self.assertGreaterEqual(len(anchor_xs), 3)
+        self.assertGreaterEqual(len(anchor_ys), 3)
+        floor_xs = [x for x, _ in dungeon.floor_tiles]
+        self.assertGreater(max(floor_xs) - min(floor_xs), 10)
 
     def test_spanning_tree_connects_all_rooms(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=1, room_count=6, seed=13, extra_cycles=0)
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=13, extra_cycles=0)
         graph: dict[int, set[int]] = {rid: set() for rid in dungeon.room_nodes}
         for a, b in dungeon.edges:
             graph[a].add(b)
@@ -46,14 +46,14 @@ class MetaGridPlacementTest(unittest.TestCase):
 
     def test_corridors_connect_graph_rooms(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=1, room_count=6, seed=5, extra_cycles=0)
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=5, extra_cycles=0)
         room_tile_count = sum(len(n.tiles) for n in dungeon.room_nodes.values())
         self.assertGreater(len(dungeon.floor_tiles), room_tile_count)
 
     def test_each_floor_has_one_start_and_one_stair(self) -> None:
         for floor_id, seed in ((1, 11), (2, 17), (3, 23)):
             dungeon = Dungeon()
-            dungeon.generate_floor(floor_id=floor_id, room_count=8, seed=seed)
+            dungeon.generate_floor(floor_id=floor_id, room_count=12, seed=seed)
             roles = [node.room_role for node in dungeon.room_nodes.values()]
             self.assertEqual(roles.count("start"), 1)
             self.assertEqual(roles.count("stair"), 1)
@@ -62,7 +62,7 @@ class MetaGridPlacementTest(unittest.TestCase):
 
     def test_start_room_uses_only_5x5_template(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=1, room_count=8, seed=7)
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=7)
         start = next(node for node in dungeon.room_nodes.values() if node.room_role == "start")
         self.assertEqual(start.template_width, START_TEMPLATE_SIZE)
         self.assertEqual(start.template_height, START_TEMPLATE_SIZE)
@@ -70,28 +70,47 @@ class MetaGridPlacementTest(unittest.TestCase):
 
     def test_each_room_uses_single_template(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=1, room_count=8, seed=7)
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=7)
         for node in dungeon.room_nodes.values():
             self.assertNotIn("+", node.template_name)
 
     def test_start_spawn_exists_on_floor1(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=1, room_count=5, seed=3)
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=3)
         assert dungeon.start_spawn is not None
         self.assertIn(dungeon.start_spawn, dungeon.floor_tiles)
 
     def test_start_spawn_can_reach_stairs(self) -> None:
         for seed in range(50):
             dungeon = Dungeon()
-            dungeon.generate_floor(floor_id=1, room_count=10, seed=seed)
+            dungeon.generate_floor(floor_id=1, room_count=12, seed=seed)
             assert dungeon.start_spawn is not None
             stair = next(iter(dungeon.stair_tiles))
             path = find_path(dungeon, dungeon.start_spawn, stair)
             self.assertTrue(path, f"seed {seed}: no path from start to stairs")
 
+    def test_each_floor_has_more_than_five_enemy_spawns(self) -> None:
+        for floor_id, seed in ((1, 7), (2, 11), (3, 23)):
+            dungeon = Dungeon()
+            dungeon.generate_floor(floor_id=floor_id, room_count=12, seed=seed)
+            self.assertGreater(len(dungeon.enemy_spawn_tiles), 5)
+
+    def test_all_normal_templates_appear_once(self) -> None:
+        from dungeon_crawler.models.room_template import RoomTemplateLoader
+
+        expected = {template.name for template in RoomTemplateLoader().load_all("normal")}
+        dungeon = Dungeon()
+        dungeon.generate_floor(floor_id=1, room_count=12, seed=7)
+        normal_names = {
+            node.template_name
+            for node in dungeon.room_nodes.values()
+            if node.room_role == "normal"
+        }
+        self.assertEqual(normal_names, expected)
+
     def test_spawn_markers_collected_from_templates(self) -> None:
         dungeon = Dungeon()
-        dungeon.generate_floor(floor_id=2, room_count=10, seed=21)
+        dungeon.generate_floor(floor_id=2, room_count=12, seed=21)
         for pos in dungeon.enemy_spawn_tiles:
             self.assertIn(pos, dungeon.floor_tiles)
         for pos in dungeon.item_spawn_tiles:

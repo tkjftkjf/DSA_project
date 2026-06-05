@@ -17,9 +17,9 @@ def rects_overlap(a: Rect, b: Rect) -> bool:
 
 
 def rect_in_map(rect: Rect, *, map_width: int, map_height: int) -> bool:
-    _, _, x1, y1 = rect
-    return x1 < map_width and y1 < map_height
+    x0, y0, x1, y1 = rect
+    return x0 >= 0 and y0 >= 0 and x1 < map_width and y1 < map_height
 
 
-def template_rect(anchor_col: int, anchor_row: int, template: RoomTemplate) -> Rect:
-    return template_world_rect(anchor_col, anchor_row, template)
+def template_rect(origin_x: int, origin_y: int, template: RoomTemplate) -> Rect:
+    return template_world_rect(origin_x, origin_y, template)

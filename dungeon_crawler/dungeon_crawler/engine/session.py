@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import time
+
 from dungeon_crawler.engine.floor_manager import FloorManager
 from dungeon_crawler.engine.game_manager import GameManager
 from dungeon_crawler.engine.spawn_resolver import SpawnResolver
@@ -12,11 +14,16 @@ def compute_score(player: Entity, turn_id: int, kills: int) -> int:
     return player.exp + player.level * 100 + turn_id * 2 + kills * 50
 
 
-def create_game_manager(seed: int = 7) -> GameManager:
-    base_seed = 2026 + seed
-    floor_manager = FloorManager.create(base_seed=seed, room_count=10, extra_cycles=2)
+def derive_session_seed() -> int:
+    """Derive session seed from game start time (nanosecond clock)."""
+    return time.time_ns() % (2**31)
+
+
+def create_game_manager() -> GameManager:
+    session_seed = derive_session_seed()
+    floor_manager = FloorManager.create(base_seed=session_seed, room_count=12, extra_cycles=2)
     dungeon = floor_manager.current_dungeon
-    spawn_resolver = SpawnResolver(base_seed=base_seed)
+    spawn_resolver = SpawnResolver(base_seed=session_seed)
 
     if dungeon.start_spawn is None:
         raise RuntimeError("Floor 1 has no start spawn")
@@ -28,11 +35,9 @@ def create_game_manager(seed: int = 7) -> GameManager:
         max_hp=20,
         atk=5,
         defense=1,
+        arrows=3,
         inventory=Inventory(),
     )
-    assert player.inventory is not None
-    for _ in range(3):
-        player.inventory.add_item(Item(name="arrow", icon="🏹"))
 
     enemies: list[Entity] = []
     ground_items_by_floor: dict[int, dict[tuple[int, int], list[Item]]] = {}
@@ -55,8 +60,8 @@ def create_game_manager(seed: int = 7) -> GameManager:
         floor_manager=floor_manager,
         player=player,
         entities=[player, *enemies],
-        base_seed=base_seed,
+        base_seed=session_seed,
         ground_items_by_floor=ground_items_by_floor,
     )
-    manager.logs.append("던전에 진입했습니다.")
+    manager.logs.append(f"던전에 진입했습니다. (session seed={session_seed})")
     return manager

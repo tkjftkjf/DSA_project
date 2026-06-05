@@ -37,6 +37,16 @@ class ConsumeActionTest(unittest.TestCase):
         action.execute()
         self.assertEqual(player.hp, 10)
 
+    def test_consume_overheal_still_heals_to_max(self) -> None:
+        inventory = Inventory()
+        potion = Item(name="heart_orange", icon="🧡", heal_amount=5)
+        slot = inventory.add_item(potion)
+        player = Entity(name="player", x=0, y=0, hp=8, max_hp=10, inventory=inventory)
+
+        action = ConsumeAction(turn_id=5, consumer=player, slot_idx=slot)
+        action.execute()
+        self.assertEqual(player.hp, 10)
+
 
 if __name__ == "__main__":
     unittest.main()

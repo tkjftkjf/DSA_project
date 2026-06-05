@@ -28,15 +28,15 @@ class RendererTest(unittest.TestCase):
         self.assertEqual((vp.x0, vp.y0), (0, 0))
 
     def test_compute_viewport_scrolls_when_player_moves_right(self) -> None:
-        vp_left = Renderer.compute_viewport(50, 30, (10, 12), 20, 12)
-        vp_right = Renderer.compute_viewport(50, 30, (30, 12), 20, 12)
+        vp_left = Renderer.compute_viewport(80, 45, (10, 12), 20, 12)
+        vp_right = Renderer.compute_viewport(80, 45, (40, 12), 20, 12)
         self.assertLess(vp_left.x0, vp_right.x0)
         self.assertEqual(vp_left.y0, vp_right.y0)
 
     def test_compute_viewport_never_exceeds_map_size(self) -> None:
-        vp = Renderer.compute_viewport(50, 30, (2, 2), 200, 100)
-        self.assertLessEqual(vp.width, 50)
-        self.assertLessEqual(vp.height, 30)
+        vp = Renderer.compute_viewport(80, 45, (2, 2), 200, 100)
+        self.assertLessEqual(vp.width, 80)
+        self.assertLessEqual(vp.height, 45)
 
     def test_render_viewport_overlays_player(self) -> None:
         grid = [
@@ -49,7 +49,7 @@ class RendererTest(unittest.TestCase):
         self.assertIn("🧙", text)
 
     def test_render_scrolled_map_output_fits_requested_tile_budget(self) -> None:
-        grid = [["⬛" for _ in range(50)] for _ in range(30)]
+        grid = [["⬛" for _ in range(80)] for _ in range(45)]
         for y in range(20):
             for x in range(15):
                 grid[y][x] = "🟫"
@@ -58,10 +58,10 @@ class RendererTest(unittest.TestCase):
         map_text, viewport = Renderer.render_scrolled_map(
             grid,
             (12, 10),
-            map_width=50,
-            map_height=30,
+            map_width=80,
+            map_height=45,
             terminal_cols=200,
-            terminal_rows=50,
+            layout_height=Renderer.compute_layout_height(50),
         )
         rendered_rows = map_text.splitlines()
         self.assertLessEqual(len(rendered_rows), viewport.height)

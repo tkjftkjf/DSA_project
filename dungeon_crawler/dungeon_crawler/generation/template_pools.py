@@ -30,3 +30,11 @@ class TemplatePools:
         if role == "normal":
             return self.normal
         raise ValueError(f"unknown room role: {role}")
+
+    @property
+    def max_room_width(self) -> int:
+        return max(template.width for templates in (self.start, self.stair, self.normal) for template in templates)
+
+    @property
+    def max_room_height(self) -> int:
+        return max(template.height for templates in (self.start, self.stair, self.normal) for template in templates)

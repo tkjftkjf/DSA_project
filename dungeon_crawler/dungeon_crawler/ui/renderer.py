@@ -5,6 +5,8 @@ from typing import Any
 
 # Most terminals render game emojis as double-width cells.
 TILE_DISPLAY_WIDTH = 2
+INPUT_RESERVE_ROWS = 2
+PANEL_BORDER_ROWS = 2
 
 
 @dataclass(frozen=True)
@@ -18,27 +20,33 @@ class Viewport:
 class Renderer:
     WALL = "🟫"
     FLOOR = "⬛"
-    STAIR = "🪜"
+    STAIR = "▃▅"
     PLAYER = "🧙"
+
+    @staticmethod
+    def compute_layout_height(terminal_rows: int) -> int:
+        """Rows available for the bordered Map/Status/Log panel block."""
+        return max(1, terminal_rows - INPUT_RESERVE_ROWS)
 
     @staticmethod
     def compute_viewport_size(
         cols: int,
-        rows: int,
+        layout_height: int,
         *,
         map_width: int | None = None,
         map_height: int | None = None,
         tile_width: int = TILE_DISPLAY_WIDTH,
     ) -> tuple[int, int]:
         """
-        Derive how many map tiles fit on screen.
+        Derive how many map tiles fit inside the Map panel.
 
-        Each tile emoji occupies `tile_width` terminal columns, so the tile
-        count must be smaller than the raw character budget.
+        `layout_height` is the outer height of the full game layout (Map +
+        Status + Log). The map panel spans that height; subtract panel borders
+        to get the tile row budget.
         """
         map_panel_cols = max(20, (cols * 2) // 3 - 4)
         tile_cols = max(10, map_panel_cols // tile_width - 1)
-        tile_rows = max(8, rows - 6)
+        tile_rows = max(4, layout_height - PANEL_BORDER_ROWS)
 
         if map_width is not None:
             tile_cols = min(tile_cols, map_width)
@@ -105,14 +113,14 @@ class Renderer:
         map_width: int,
         map_height: int,
         terminal_cols: int,
-        terminal_rows: int,
+        layout_height: int,
     ) -> tuple[str, Viewport]:
         """
-        Build a player-centered scrolled map view that fits the terminal.
+        Build a player-centered scrolled map view that fits the layout.
         """
         viewport_width, viewport_height = Renderer.compute_viewport_size(
             terminal_cols,
-            terminal_rows,
+            layout_height,
             map_width=map_width,
             map_height=map_height,
         )

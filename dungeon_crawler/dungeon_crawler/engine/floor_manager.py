@@ -20,7 +20,7 @@ class FloorManager:
         cls,
         *,
         base_seed: int,
-        room_count: int = 10,
+        room_count: int = 12,
         extra_cycles: int = 1,
         loader: RoomTemplateLoader | None = None,
     ) -> FloorManager:

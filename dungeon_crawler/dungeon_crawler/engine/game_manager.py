@@ -43,7 +43,7 @@ class GameManager:
     pending_attack_mode: Optional[str] = None
     kills: int = 0
     show_inventory: bool = False
-    debug: bool = False
+    dungeon_cleared: bool = False
 
     def __post_init__(self) -> None:
         self.turn_manager = TurnManager(base_seed=self.base_seed, turn_id=0)
@@ -113,7 +113,10 @@ class GameManager:
         action = ConsumeAction(turn_id=self.turn_manager.turn_id, consumer=self.player, slot_idx=slot_idx)
         result = self.action_validator.validate(action, self.game_context())
         if not result.ok:
-            self.logs.append("해당 슬롯 아이템을 사용할 수 없습니다.")
+            if result.reason == "hp_full":
+                self.logs.append("체력이 가득 차 아이템을 사용할 수 없습니다.")
+            else:
+                self.logs.append("해당 슬롯 아이템을 사용할 수 없습니다.")
             return False
         self.execute_action(action, log_message=f"플레이어가 슬롯 {slot_idx + 1} 아이템을 사용했습니다.")
         return True
@@ -142,7 +145,6 @@ class GameManager:
         if self.player.pos == before:
             self.logs.append("이동할 수 없는 위치입니다.")
             return False
-        self._log_move(f"플레이어 이동: {before} -> {self.player.pos}")
         self._try_auto_loot(self.player.pos)
         self._try_descend_stairs()
         return True
@@ -163,15 +165,11 @@ class GameManager:
             return self._resolve_combat(self.player, enemy)
 
         if mode == "ranged":
-            if self.player.inventory is None or self.player.inventory.counts.get("arrow", 0) < 1:
+            if self.player.arrows < 1:
                 self.logs.append("화살이 부족합니다.")
                 return False
             projectile = self._trace_projectile(dx, dy)
-            try:
-                self.player.inventory.remove_first_by_name("arrow")
-            except ValueError:
-                self.logs.append("화살이 부족합니다.")
-                return False
+            self.player.arrows -= 1
             self.pending_attack_mode = None
             if projectile.hit_enemy is not None:
                 return self._resolve_combat(self.player, projectile.hit_enemy, ranged=True)
@@ -223,12 +221,9 @@ class GameManager:
                         )
                 continue
 
-            before = action.entity.pos if isinstance(action, MoveAction) else None
             self.turn_manager.prepare_turn_rng()
             action.execute()
             self.undo_manager.record(action)
-            if isinstance(action, MoveAction) and before is not None and action.entity.pos != before:
-                self._log_move(f"{action.entity.name} 이동: {before} -> {action.entity.pos}")
 
     def all_enemies_defeated(self) -> bool:
         return not any(
@@ -237,9 +232,6 @@ class GameManager:
         )
 
     def status_text(self) -> str:
-        arrows = 0
-        if self.player.inventory is not None:
-            arrows = self.player.inventory.counts.get("arrow", 0)
         mode_line = ""
         if self.pending_attack_mode == "melee":
             mode_line = "Mode: 근접(C) - WASD로 방향 선택\n"
@@ -254,10 +246,10 @@ class GameManager:
             f"Turn: {self.turn_manager.turn_id}",
             f"HP: {self.player.hp}/{self.player.max_hp}",
             f"ATK/DEF: {self.player.atk}/{self.player.defense}",
-            f"EXP/LV: {self.player.exp}/{self.player.level}",
+            f"LVL: {self.player.level}",
+            f"EXP: {self.player.exp}/{self.player.exp_required_for_level_up()}",
             f"Kills: {self.kills}",
-            f"Arrows: {arrows}",
-            f"Debug: {'ON' if self.debug else 'OFF'}",
+            f"Arrows: {self.player.arrows}",
         ]
         if self.show_inventory:
             lines.append(_inventory_lines(self.player))
@@ -313,6 +305,10 @@ class GameManager:
             return
         if not self.floor_manager.is_on_stairs(self.player.pos):
             return
+        if self.floor_manager.current_floor >= 3:
+            self.dungeon_cleared = True
+            self.logs.append("최하층 계단에 도달했습니다! 던전을 클리어했습니다!")
+            return
         if not self.floor_manager.can_descend():
             self.logs.append("더 이상 내려갈 수 없습니다.")
             return
@@ -321,6 +317,7 @@ class GameManager:
         if target is None:
             return
         self.player.set_pos(*target)
+        self.player.floor_id = self.floor_manager.current_floor
         self.logs.append(
             f"계단을 통해 Floor {before_floor} -> Floor {self.floor_manager.current_floor}로 내려갔습니다."
         )
@@ -406,10 +403,6 @@ class GameManager:
             enemy = self._enemy_at((x, y))
             if enemy is not None:
                 return ProjectileResult(hit_enemy=enemy, blocked_at=None, block_reason=None)
-
-    def _log_move(self, message: str) -> None:
-        if self.debug:
-            self.logs.append(message)
 
     @staticmethod
     def _adjacent(a: tuple[int, int], b: tuple[int, int]) -> bool:

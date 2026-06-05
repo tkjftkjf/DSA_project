@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import sys
 
 from dungeon_crawler.engine.game_manager import GameManager
@@ -18,7 +17,6 @@ def main() -> int:
         if not show_main_menu(leaderboard):
             return 0
         manager = create_game_manager()
-        manager.debug = "--debug" in sys.argv or os.environ.get("DUNGEON_DEBUG") == "1"
         result = run_game_loop(manager)
         score = compute_score(manager.player, manager.turn_manager.turn_id, manager.kills)
         leaderboard.add(
@@ -50,8 +48,7 @@ def run_game_loop(manager: GameManager) -> str:
     manager.logs.append("조작: w/a/s/d, c/v, u/r, 1~0, i, esc")
 
     while player.is_alive:
-        if manager.all_enemies_defeated():
-            manager.logs.append("모든 적을 처치했습니다! 승리!")
+        if manager.dungeon_cleared:
             return "victory"
 
         _render_frame(manager)
@@ -99,6 +96,8 @@ def run_game_loop(manager: GameManager) -> str:
         if turn_consumed:
             manager.run_enemy_turns()
             manager.finalize_turn()
+            if manager.dungeon_cleared:
+                return "victory"
             if player.hp <= 0:
                 player.is_alive = False
                 manager.logs.append("플레이어가 쓰러졌습니다. 게임 오버.")
@@ -125,27 +124,6 @@ def _render_frame(manager: GameManager) -> None:
             continue
         grid[entity.y][entity.x] = "👾"
 
-    try:
-        from rich.console import Console
-
-        console = Console()
-        map_text, _viewport = Renderer.render_scrolled_map(
-            grid,
-            manager.player.pos,
-            map_width=dungeon.width,
-            map_height=dungeon.height,
-            terminal_cols=console.size.width,
-            terminal_rows=console.size.height,
-        )
-    except ModuleNotFoundError:
-        map_text, _viewport = Renderer.render_scrolled_map(
-            grid,
-            manager.player.pos,
-            map_width=dungeon.width,
-            map_height=dungeon.height,
-            terminal_cols=80,
-            terminal_rows=24,
-        )
     status_text = manager.status_text()
     log_text = "\n".join(manager.logs[-10:]) if manager.logs else "-"
 
@@ -153,10 +131,28 @@ def _render_frame(manager: GameManager) -> None:
         from rich.console import Console
 
         console = Console()
+        layout_height = Renderer.compute_layout_height(console.size.height)
+        map_text, _viewport = Renderer.render_scrolled_map(
+            grid,
+            manager.player.pos,
+            map_width=dungeon.width,
+            map_height=dungeon.height,
+            terminal_cols=console.size.width,
+            layout_height=layout_height,
+        )
         console.clear()
         layout = Renderer.build_layout(map_text=map_text, status_text=status_text, log_text=log_text)
-        console.print(layout)
+        console.print(layout, height=layout_height)
     except ModuleNotFoundError:
+        layout_height = Renderer.compute_layout_height(24)
+        map_text, _viewport = Renderer.render_scrolled_map(
+            grid,
+            manager.player.pos,
+            map_width=dungeon.width,
+            map_height=dungeon.height,
+            terminal_cols=80,
+            layout_height=layout_height,
+        )
         print("\n[Map]")
         print(map_text)
         print("\n[Status]")

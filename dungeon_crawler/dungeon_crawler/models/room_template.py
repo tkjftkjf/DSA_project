@@ -4,11 +4,8 @@ import random
 from dataclasses import dataclass
 from pathlib import Path
 
-WORLD_WIDTH = 50
+WORLD_WIDTH = 53
 WORLD_HEIGHT = 30
-CELL_SIZE = 5
-META_COLS = WORLD_WIDTH // CELL_SIZE
-META_ROWS = WORLD_HEIGHT // CELL_SIZE
 START_TEMPLATE_SIZE = 5
 
 VALID_CHARS = frozenset("01234")
@@ -91,10 +88,8 @@ class RoomTemplateLoader:
             raise ValueError(f"{path}: empty template")
 
         width = len(lines[0])
-        if width == 0 or width % CELL_SIZE != 0:
-            raise ValueError(f"{path}: width must be a positive multiple of {CELL_SIZE}")
-        if len(lines) % CELL_SIZE != 0:
-            raise ValueError(f"{path}: height must be a multiple of {CELL_SIZE}")
+        if width == 0:
+            raise ValueError(f"{path}: width must be positive")
 
         cells: list[tuple[int, ...]] = []
         for row_idx, line in enumerate(lines):
@@ -132,8 +127,6 @@ def pick_room_template(templates: list[RoomTemplate], rng: random.Random) -> Roo
     return rng.choice(templates)
 
 
-def template_world_rect(meta_col: int, meta_row: int, template: RoomTemplate) -> tuple[int, int, int, int]:
-    """Return inclusive world bounds (x0, y0, x1, y1) for a template anchored on a meta cell."""
-    x0 = meta_col * CELL_SIZE
-    y0 = meta_row * CELL_SIZE
-    return (x0, y0, x0 + template.width - 1, y0 + template.height - 1)
+def template_world_rect(origin_x: int, origin_y: int, template: RoomTemplate) -> tuple[int, int, int, int]:
+    """Return inclusive world bounds (x0, y0, x1, y1) for a template at the given origin."""
+    return (origin_x, origin_y, origin_x + template.width - 1, origin_y + template.height - 1)

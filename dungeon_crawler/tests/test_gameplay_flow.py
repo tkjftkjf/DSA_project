@@ -37,13 +37,12 @@ class GameplayFlowTest(unittest.TestCase):
         self.assertIsNone(self.manager.pending_attack_mode)
 
     def test_ranged_mode_consumes_arrow(self) -> None:
-        assert self.player.inventory is not None
-        self.player.inventory.add_item(Item(name="arrow", icon="🏹"))
+        self.player.arrows = 1
         self.enemy.set_pos(4, 1)
         self.manager.set_attack_mode("ranged")
         acted = self.manager.try_player_attack(dx=1, dy=0)
         self.assertTrue(acted)
-        self.assertEqual(self.player.inventory.counts.get("arrow", 0), 0)
+        self.assertEqual(self.player.arrows, 0)
 
     def test_auto_loot_on_move(self) -> None:
         potion = Item(name="heart_red", icon="❤️", heal_amount=3)
@@ -63,7 +62,7 @@ class GameplayFlowTest(unittest.TestCase):
         from dungeon_crawler.engine.floor_manager import FloorManager
 
         manager = self.manager
-        manager.floor_manager = FloorManager.create(base_seed=99, room_count=6)
+        manager.floor_manager = FloorManager.create(base_seed=99, room_count=12)
         dungeon = manager.floor_manager.current_dungeon
         stairs = sorted(dungeon.stair_tiles)[0]
         manager.player.set_pos(stairs[0] - 1, stairs[1])
@@ -72,6 +71,22 @@ class GameplayFlowTest(unittest.TestCase):
         moved = manager.try_player_move(dx=1, dy=0)
         self.assertTrue(moved)
         self.assertEqual(manager.floor_manager.current_floor, 2)
+
+    def test_floor3_stairs_clears_dungeon(self) -> None:
+        from dungeon_crawler.engine.floor_manager import FloorManager
+
+        manager = self.manager
+        manager.floor_manager = FloorManager.create(base_seed=99, room_count=12)
+        manager.floor_manager.current_floor_index = 2
+        manager.player.floor_id = 3
+        dungeon = manager.floor_manager.current_dungeon
+        stairs = sorted(dungeon.stair_tiles)[0]
+        manager.player.set_pos(stairs[0] - 1, stairs[1])
+        dungeon.floor_tiles.add((stairs[0] - 1, stairs[1]))
+
+        moved = manager.try_player_move(dx=1, dy=0)
+        self.assertTrue(moved)
+        self.assertTrue(manager.dungeon_cleared)
 
     def test_kill_increments_kills_and_levels_up(self) -> None:
         self.enemy.hp = 1

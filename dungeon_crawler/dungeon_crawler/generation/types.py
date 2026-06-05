@@ -14,8 +14,9 @@ class RoomRole(str, Enum):
 
 @dataclass(frozen=True)
 class RoomAnchor:
-    meta_col: int
-    meta_row: int
+    """Top-left world tile where a room template is placed."""
+    x: int
+    y: int
     role: RoomRole
 
 

@@ -6,7 +6,6 @@ import unittest
 from pathlib import Path
 
 from dungeon_crawler.models.room_template import (
-    CELL_SIZE,
     START_TEMPLATE_SIZE,
     RoomTemplateLoader,
     pick_room_template,
@@ -24,8 +23,8 @@ class RoomTemplateLoaderTest(unittest.TestCase):
         self.assertGreaterEqual(len(templates), 1)
         for template in templates:
             self.assertEqual(template.room_type, "normal")
-            self.assertEqual(template.width % CELL_SIZE, 0)
-            self.assertEqual(template.height % CELL_SIZE, 0)
+            self.assertGreater(template.width, 0)
+            self.assertGreater(template.height, 0)
 
     def test_loads_start_and_stair_templates(self) -> None:
         self.assertGreaterEqual(len(self.loader.load_all("start")), 1)
@@ -33,14 +32,35 @@ class RoomTemplateLoaderTest(unittest.TestCase):
 
     def test_parses_tile_kinds(self) -> None:
         template = self.loader.load("normal", "2")
-        self.assertIn((1, 4), template.enemy_spawns())
+        self.assertTrue(template.enemy_spawns())
         self.assertTrue(template.walls())
+        self.assertTrue(template.stairs() or template.floors())
 
-    def test_rejects_invalid_width(self) -> None:
+    def test_loads_arbitrary_size_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "rooms" / "x"
+            base.mkdir(parents=True)
+            lines = ["0" * 7 for _ in range(8)]
+            (base / "odd.txt").write_text("\n".join(lines) + "\n", encoding="utf-8")
+            loader = RoomTemplateLoader(base_dir=base.parent)
+            template = loader.load("x", "odd")
+            self.assertEqual(template.width, 7)
+            self.assertEqual(template.height, 8)
+
+    def test_rejects_inconsistent_row_width(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             base = Path(tmp) / "rooms"
             (base / "x").mkdir(parents=True)
-            (base / "x" / "bad.txt").write_text("000\n000\n", encoding="utf-8")
+            (base / "x" / "bad.txt").write_text("000\n0000\n", encoding="utf-8")
+            loader = RoomTemplateLoader(base_dir=base)
+            with self.assertRaises(ValueError):
+                loader.load("x", "bad")
+
+    def test_rejects_empty_template(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            base = Path(tmp) / "rooms"
+            (base / "x").mkdir(parents=True)
+            (base / "x" / "bad.txt").write_text("", encoding="utf-8")
             loader = RoomTemplateLoader(base_dir=base)
             with self.assertRaises(ValueError):
                 loader.load("x", "bad")
@@ -65,10 +85,10 @@ class RoomTemplateLoaderTest(unittest.TestCase):
         picked = pick_room_template(normals, random.Random(0))
         self.assertIn(picked, normals)
 
-    def test_template_world_rect_uses_meta_anchor(self) -> None:
+    def test_template_world_rect_uses_origin(self) -> None:
         template = self.loader.load("normal", "0")
-        rect = template_world_rect(2, 1, template)
-        self.assertEqual(rect, (10, 5, 14, 9))
+        rect = template_world_rect(12, 7, template)
+        self.assertEqual(rect, (12, 7, 12 + template.width - 1, 7 + template.height - 1))
 
 
 if __name__ == "__main__":

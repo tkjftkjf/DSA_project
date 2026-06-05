@@ -18,6 +18,7 @@ class Entity:
     exp: int = 0
     exp_reward: int = 0
     floor_id: int = 1
+    arrows: int = 0
     is_alive: bool = True
     inventory: Optional[Inventory] = None
 
@@ -29,7 +30,12 @@ class Entity:
         self.x = x
         self.y = y
 
+    def exp_required_for_level_up(self) -> int:
+        return self.level * 10
+
     def heal(self, amount: int) -> int:
+        if self.hp >= self.max_hp:
+            return 0
         before = self.hp
         self.hp = min(self.max_hp, self.hp + amount)
         return self.hp - before

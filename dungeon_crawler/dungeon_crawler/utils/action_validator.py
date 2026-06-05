@@ -46,6 +46,8 @@ class ActionValidator:
         for entity in context.entities:
             if entity is action.entity or not entity.is_alive:
                 continue
+            if entity.floor_id != action.entity.floor_id:
+                continue
             if entity.pos == target:
                 return ValidationResult(ok=False, reason="occupied")
         return ValidationResult(ok=True, action=action)
@@ -75,4 +77,7 @@ class ActionValidator:
             return ValidationResult(ok=False, reason="bad_slot")
         if inventory.slots[action.slot_idx] is None:
             return ValidationResult(ok=False, reason="empty_slot")
+        item = inventory.slots[action.slot_idx]
+        if item.heal_amount > 0 and action.consumer.hp >= action.consumer.max_hp:
+            return ValidationResult(ok=False, reason="hp_full")
         return ValidationResult(ok=True, action=action)

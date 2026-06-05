@@ -22,18 +22,21 @@ class FloorGeneratorConfig:
     room_count: int
     seed: int
     extra_cycles: int = 1
-    anchor_min_dist: int = 3
+    anchor_min_spacing: int = 10
+    min_enemy_spawns: int = 6
+    max_generation_attempts: int = 100
 
 
 class FloorGenerator:
     """
     Template-driven floor pipeline:
 
-    1. scatter anchors on meta grid
+    1. scatter room origins on the world grid
     2. assign start / stair / normal roles
-    3. pick one template per anchor
+    3. pick one template per origin (random among valid fits)
     4. stamp rooms onto the dungeon grid
     5. connect rooms with a graph + carved corridors
+    6. retry with a new seed when enemy spawn count is too low
     """
 
     def __init__(self, loader: RoomTemplateLoader | None = None) -> None:
@@ -41,16 +44,48 @@ class FloorGenerator:
 
     def generate(self, dungeon: Dungeon, config: FloorGeneratorConfig) -> None:
         self._validate_config(config)
-
-        rng = random.Random(config.seed)
         pools = TemplatePools.load(self.loader)
-        dungeon.reset_for_floor(config.floor_id)
+        self._validate_room_count_for_templates(config, pools)
 
-        anchors = scatter_anchors(rng, config.room_count, min_dist=config.anchor_min_dist)
-        if len(anchors) < config.room_count:
-            raise RuntimeError("Failed to place enough scattered meta anchors")
+        for attempt in range(config.max_generation_attempts):
+            attempt_seed = config.seed + attempt * 131
+            rng = random.Random(attempt_seed)
+            dungeon.reset_for_floor(config.floor_id)
 
-        room_anchors = assign_room_anchors(anchors, room_count=config.room_count)
+            try:
+                self._build_floor(dungeon, config, pools, rng)
+            except RuntimeError:
+                continue
+
+            if len(dungeon.enemy_spawn_tiles) >= config.min_enemy_spawns:
+                return
+
+        raise RuntimeError(
+            f"Floor {config.floor_id}: failed to generate at least "
+            f"{config.min_enemy_spawns} enemy spawns after "
+            f"{config.max_generation_attempts} attempts"
+        )
+
+    def _build_floor(
+        self,
+        dungeon: Dungeon,
+        config: FloorGeneratorConfig,
+        pools: TemplatePools,
+        rng: random.Random,
+    ) -> None:
+        origins = scatter_anchors(
+            rng,
+            config.room_count,
+            map_width=dungeon.width,
+            map_height=dungeon.height,
+            min_spacing=config.anchor_min_spacing,
+            max_room_width=pools.max_room_width,
+            max_room_height=pools.max_room_height,
+        )
+        if len(origins) < config.room_count:
+            raise RuntimeError("Failed to place enough scattered room origins")
+
+        room_anchors = assign_room_anchors(origins, room_count=config.room_count)
         placed_rooms = assign_room_templates(
             room_anchors,
             pools,
@@ -77,6 +112,17 @@ class FloorGenerator:
             raise ValueError("room_count must be >= 3 (start + stair + normal)")
         if config.floor_id not in (1, 2, 3):
             raise ValueError("floor_id must be 1, 2, or 3")
+        if config.min_enemy_spawns <= 5:
+            raise ValueError("min_enemy_spawns must be greater than 5")
+
+    @staticmethod
+    def _validate_room_count_for_templates(config: FloorGeneratorConfig, pools: TemplatePools) -> None:
+        required = 2 + len(pools.normal)
+        if config.room_count < required:
+            raise ValueError(
+                f"room_count must be >= {required} to place every normal template "
+                f"(start + stair + {len(pools.normal)} normals)"
+            )
 
     @staticmethod
     def _apply_stamps(
@@ -100,8 +146,8 @@ class FloorGenerator:
             dungeon.room_nodes[placed.room_id] = RoomNode(
                 room_id=placed.room_id,
                 tiles=set(stamp.floor_tiles),
-                meta_col=anchor.meta_col,
-                meta_row=anchor.meta_row,
+                anchor_x=anchor.x,
+                anchor_y=anchor.y,
                 template_width=template.width,
                 template_height=template.height,
                 template_name=template.name,

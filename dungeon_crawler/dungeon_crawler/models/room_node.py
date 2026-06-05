@@ -2,17 +2,17 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
-from dungeon_crawler.models.room_template import CELL_SIZE
+from dungeon_crawler.models.room_template import START_TEMPLATE_SIZE
 
 
 @dataclass(frozen=True)
 class RoomNode:
     room_id: int
     tiles: set[tuple[int, int]]
-    meta_col: int = 0
-    meta_row: int = 0
-    template_width: int = CELL_SIZE
-    template_height: int = CELL_SIZE
+    anchor_x: int = 0
+    anchor_y: int = 0
+    template_width: int = START_TEMPLATE_SIZE
+    template_height: int = START_TEMPLATE_SIZE
     template_name: str = ""
     room_role: str = "normal"
 

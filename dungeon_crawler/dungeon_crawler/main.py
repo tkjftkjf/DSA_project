@@ -124,18 +124,23 @@ def _render_frame(manager: GameManager) -> None:
         from rich.console import Console
 
         console = Console()
-        width, height = Renderer.compute_viewport_size(console.size.width, console.size.height)
+        map_text, _viewport = Renderer.render_scrolled_map(
+            grid,
+            manager.player.pos,
+            map_width=dungeon.width,
+            map_height=dungeon.height,
+            terminal_cols=console.size.width,
+            terminal_rows=console.size.height,
+        )
     except ModuleNotFoundError:
-        width, height = 20, 12
-
-    viewport = Renderer.compute_viewport(
-        map_width=dungeon.width,
-        map_height=dungeon.height,
-        player_pos=manager.player.pos,
-        viewport_width=width,
-        viewport_height=height,
-    )
-    map_text = Renderer.render_viewport(grid, player_pos=manager.player.pos, viewport=viewport)
+        map_text, _viewport = Renderer.render_scrolled_map(
+            grid,
+            manager.player.pos,
+            map_width=dungeon.width,
+            map_height=dungeon.height,
+            terminal_cols=80,
+            terminal_rows=24,
+        )
     status_text = manager.status_text()
     log_text = "\n".join(manager.logs[-10:]) if manager.logs else "-"
 

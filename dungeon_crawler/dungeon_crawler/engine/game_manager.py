@@ -17,7 +17,6 @@ from dungeon_crawler.models.dungeon import Dungeon
 from dungeon_crawler.models.entity import Entity
 from dungeon_crawler.models.item import Item
 from dungeon_crawler.utils.action_validator import ActionValidator, GameContext
-from dungeon_crawler.utils.decorators import validate_action
 from dungeon_crawler.utils.pathfinding import find_path
 
 ENEMY_VISION_RADIUS = 6
@@ -47,10 +46,8 @@ class GameManager:
 
     def __post_init__(self) -> None:
         self.turn_manager = TurnManager(base_seed=self.base_seed, turn_id=0)
-        self.turn_resolver = TurnResolver(undo_manager=self.undo_manager, logs=self.logs)
+        self.turn_resolver = TurnResolver()
         self.action_validator = ActionValidator()
-        for entity in self.entities:
-            self.turn_manager.register(entity)
 
     @property
     def active_dungeon(self) -> Dungeon:
@@ -121,7 +118,6 @@ class GameManager:
         self.execute_action(action, log_message=f"플레이어가 슬롯 {slot_idx + 1} 아이템을 사용했습니다.")
         return True
 
-    @validate_action
     def try_player_move(self, dx: int, dy: int) -> bool:
         target = (self.player.x + dx, self.player.y + dy)
         enemy = self._enemy_at(target)
@@ -149,7 +145,6 @@ class GameManager:
         self._try_descend_stairs()
         return True
 
-    @validate_action
     def try_player_attack(self, dx: int, dy: int) -> bool:
         mode = self.pending_attack_mode
         if mode is None:
@@ -224,12 +219,6 @@ class GameManager:
             self.turn_manager.prepare_turn_rng()
             action.execute()
             self.undo_manager.record(action)
-
-    def all_enemies_defeated(self) -> bool:
-        return not any(
-            e is not self.player and e.is_alive and e.floor_id == self.current_floor_id
-            for e in self.entities
-        )
 
     def status_text(self) -> str:
         mode_line = ""

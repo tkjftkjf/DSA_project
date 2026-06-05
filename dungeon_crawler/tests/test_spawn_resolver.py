@@ -24,11 +24,6 @@ class SpawnResolverTest(unittest.TestCase):
         b = SpawnResolver(base_seed=2026).roll_enemy_stats(2, 3)
         self.assertEqual(a, b)
 
-    def test_boss_multiplier(self) -> None:
-        normal = self.resolver.roll_enemy_stats(3, 0, boss=False)
-        boss = self.resolver.roll_enemy_stats(3, 0, boss=True)
-        self.assertGreater(boss["hp"], normal["hp"])
-
     def test_heart_spawn_uses_six_kinds(self) -> None:
         names = {self.resolver.roll_heart_item(1, i).name for i in range(30)}
         self.assertTrue(names.issubset({item.name for item in HEART_ITEMS}))

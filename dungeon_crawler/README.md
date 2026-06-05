@@ -42,7 +42,7 @@ docker run --rm dungeon-crawler python -m unittest discover -s tests -t . -p "te
 
 - Dungeon room graph generation (preset room templates + spanning tree + cycle + corridors)
 - Undo/Redo two-stack system with turn markers
-- FIFO turn manager + deterministic per-turn RNG seed
+- Turn counter + deterministic per-turn RNG seed; enemy batch resolve via TurnResolver
 - Inventory list/hash-map model + loot/consume action
 - A* pathfinding with dynamic blockers + enemy vision/wander
 - Insertion-sort leaderboard with JSON persistence

@@ -41,12 +41,27 @@ class TurnResolverTest(unittest.TestCase):
         self.assertEqual(len(actions), 1)
         self.assertEqual(attempts["count"], 2)
 
-    def test_resolve_all_executes_once_per_entity(self) -> None:
-        actions = [
-            MoveAction(turn_id=0, entity=self.player, dungeon=self.dungeon, dx=0, dy=1),
-            MoveAction(turn_id=0, entity=self.enemy, dungeon=self.dungeon, dx=0, dy=-1),
+    def test_collect_actions_returns_validated_moves(self) -> None:
+        plans = [
+            EntityTurnPlan(
+                entity=self.player,
+                propose=lambda: MoveAction(
+                    turn_id=0, entity=self.player, dungeon=self.dungeon, dx=0, dy=1
+                ),
+                fallback=lambda: None,
+            ),
+            EntityTurnPlan(
+                entity=self.enemy,
+                propose=lambda: MoveAction(
+                    turn_id=0, entity=self.enemy, dungeon=self.dungeon, dx=0, dy=-1
+                ),
+                fallback=lambda: None,
+            ),
         ]
-        self.resolver.execute_batch(actions)
+        actions = self.resolver.collect_actions(plans, self.context)
+        self.assertEqual(len(actions), 2)
+        for action in actions:
+            action.execute()
         self.assertEqual(self.player.pos, (2, 3))
         self.assertEqual(self.enemy.pos, (4, 3))
 

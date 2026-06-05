@@ -7,7 +7,7 @@ from dungeon_crawler.models.room_template import START_TEMPLATE_SIZE, WORLD_HEIG
 from dungeon_crawler.utils.pathfinding import find_path
 
 
-class MetaGridPlacementTest(unittest.TestCase):
+class FloorGenerationTest(unittest.TestCase):
     def test_floor1_world_size(self) -> None:
         dungeon = Dungeon()
         dungeon.generate_floor(floor_id=1, room_count=12, seed=7)

@@ -29,18 +29,15 @@ class SpawnResolver:
     def _rng(self, floor_id: int, spawn_index: int, *, salt: int = 0) -> random.Random:
         return random.Random(self.base_seed + floor_id * 1000 + spawn_index * 10 + salt)
 
-    def roll_enemy_stats(self, floor_id: int, spawn_index: int, *, boss: bool = False) -> dict[str, int]:
+    def roll_enemy_stats(self, floor_id: int, spawn_index: int) -> dict[str, int]:
         ranges = FLOOR_STAT_RANGES[floor_id]
         rng = self._rng(floor_id, spawn_index, salt=1)
-        stats = {
+        return {
             "hp": rng.randint(*ranges["hp"]),
             "atk": rng.randint(*ranges["atk"]),
             "defense": rng.randint(*ranges["defense"]),
             "exp_reward": rng.randint(*ranges["exp"]),
         }
-        if boss:
-            stats["hp"] = int(stats["hp"] * 1.5)
-        return stats
 
     def roll_heart_item(self, floor_id: int, spawn_index: int) -> Item:
         rng = self._rng(floor_id, spawn_index, salt=2)
@@ -52,12 +49,10 @@ class SpawnResolver:
         positions: list[tuple[int, int]],
         *,
         floor_id: int,
-        boss_indices: set[int] | None = None,
     ) -> list[Entity]:
-        boss_indices = boss_indices or set()
         enemies: list[Entity] = []
         for idx, (x, y) in enumerate(positions):
-            stats = self.roll_enemy_stats(floor_id, idx, boss=idx in boss_indices)
+            stats = self.roll_enemy_stats(floor_id, idx)
             enemies.append(
                 Entity(
                     name=f"enemy_f{floor_id}_{idx + 1}",

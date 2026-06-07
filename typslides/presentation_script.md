@@ -7,13 +7,18 @@
 
 ## Dungeon Map
 
-### 2D Map
+### 이동 및 충돌 검사 — set
 
-**한 줄:** 53×30 월드에서 이동 가능한 타일만 `set`으로 관리합니다.
+- **장점:** 사용하는 타일만을 기억하여, 메모리를 아낄 수 있음. Python 내부적으로 hash table로 구현되어 있어 빠른 조회.
+- **단점:** 맵의 크기(53×30)를 표현할 수 없어, 범위 검사를 따로 진행해야 함.
 
-맵 전체를 2D 배열로 두면 53×30 = 1,590칸을 항상 들고 있어야 하는데, 우리는 실제로 바닥이 있는 타일만 `floor_tiles` set에 넣습니다. 벽은 `_blocked` set으로 따로 관리하고, `is_walkable()`에서 O(1)로 조회합니다. 플레이어 이동, 적 AI, 렌더링이 전부 (x, y) 좌표 하나로 통일되기 때문에 2D 타일 좌표가 게임 로직과 1:1로 맞습니다.
+---
 
-- **복잡도:** 타일 조회 O(1), 공간 O(바닥 타일 수)
+### 이동 및 충돌 검사 — 2D array
+
+- **장점:** 인덱스 접근 O(1), 구현 직관적
+- **단점:** 전체 1,590칸 항상 할당
+- **설명:** 바닥이 없는 빈 공간까지 메모리 점유
 
 ---
 
@@ -37,19 +42,20 @@
 
 ---
 
-### A*
+### 맵 생성 — 통로 생성
 
 **한 줄:** 방과 방 사이 통로를 A*로 찾고, 다른 방 내부는 `protected`로 막습니다.
 
-L자 직선 복도는 구현이 쉽지만 중간에 다른 방을 뚫을 수 있습니다. 우리는 각 방 **외곽 바닥 타일(perimeter)** 을 연결점으로 잡고, `protected`에 타 방 템플릿 영역을 넣은 뒤 A*로 경로를 찾습니다. 맨해튼 휴리스틱, 4방향, `heapq` min-heap입니다. 경로 타일을 `floor_tiles`에 추가해 복도를 완성합니다.
+우리는 각 방 **외곽 바닥 타일(perimeter)** 을 연결점으로 잡고, `protected`에 타 방 템플릿 영역을 넣은 뒤 A*로 경로를 찾습니다. 맨해튼 휴리스틱, 4방향, `heapq` min-heap입니다. 경로 타일을 `floor_tiles`에 추가해 복도를 완성합니다.
 
+- **선택 이유:** L자 직선 복도의 경우, 다른 방을 막힌 벽으로 보고 우회하지 않아, 방을 뚫고 통로가 생성되는 문제가 발생함.
 - **복잡도:** O(WH log WH) worst, WH = 53×30
 
 ---
 
 ## Undo System
 
-### Two-Stack (LIFO)
+### 행동 되돌리기 (Undo)
 
 **한 줄:** `undo_stack` / `redo_stack`으로 턴 단위 Undo/Redo를 합니다.
 
@@ -59,23 +65,43 @@ Undo는 **가장 최근 행동부터** 되돌려야 하므로 FIFO인 Queue는 �
 
 ---
 
-### Command Pattern
+### Action 기록
 
-**한 줄:** `MoveAction`, `CombatAction` 등이 `execute()` / `undo()`를 쌍으로 가집니다.
+**한 줄:** 추상 `Action(ABC)` 아래 원자적 커맨드가 `execute()` / `undo()` 쌍을 구현합니다.
 
-Memento만 쓰면 “상태 저장”과 “되돌리기”가 파일 곳곳에 흩어집니다. Command Pattern은 행동 단위로 역연산을 한곳에 모읍니다. 예: `LootAction`은 execute 시 바닥→인벤, undo 시 인벤→바닥. `game_manager.undo_turn()`이 스택에서 Action을 꺼내 `undo()`만 호출하면 됩니다.
+- **선택 이유:** 이동·전투·루팅·소비 등 행동을 **원자적 Action 객체**로 캡슐화하고, 추상 클래스가 `execute()` / `undo()` 계약을 강제합니다. `UndoManager`는 구체 타입을 몰라도 `action.undo()`만 호출하므로 undo 흐름이 통일됩니다.
+
+`Action(ABC)`(`base_action.py`)는 `turn_id`와 추상 메서드 `execute()`, `undo()`만 정의합니다. 구체 클래스(`MoveAction`, `CombatAction`, `LootAction`, `ConsumeAction`)는 frozen dataclass로 **한 번의 게임 변경**만 담고, execute 시 `_previous_pos`, `_defender_prev_hp` 같은 **delta**만 저장합니다. undo는 그 delta로 역연산합니다. 턴 경계는 `EndTurnAction` 마커도 같은 ABC를 상속해 스택에 쌓입니다.
+
+Memento(전체 스냅샷) 대신 delta만 Action에 두면 메모리는 O(턴당 액션 수)로 유지됩니다. `game_manager.execute_action()` → `undo_manager.record(action)` → `undo_turn()`에서 pop 후 `action.undo()` — undo 로직이 각 Action 클래스 안에 응집됩니다.
+
+- **예:** `MoveAction` — execute: 좌표 이동 + `_previous_pos` 저장 / undo: 이전 좌표 복원
+- **예:** `LootAction` — execute: 바닥→인벤 / undo: 인벤→바닥
 
 ---
 
 ## Turn Management
 
-### Batch Action List
+### Batch Action List (적 턴 일괄 처리)
 
-**한 줄:** 플레이어 1액션 후, 적 전원의 확정 액션을 리스트로 모아 순차 실행합니다.
+**한 줄:** 플레이어 1액션 후, 현재 층 적 전원의 행동을 **먼저 모두 확정**하고 리스트로 **순차 실행**합니다.
 
-FIFO per-entity Queue는 모든 액터가 공정히 한 번씩 도는 구조인데, 우리 TUI는 **플레이어가 먼저, 그다음 적 전원**이 UX에 맞습니다. `TurnResolver`가 각 적의 propose → `ActionValidator` 검증 → 실패 시 fallback(≤8회) 후 확정 리스트를 `run_enemy_turns()`가 execute합니다.
+턴 흐름은 `플레이어 행동 → run_enemy_turns() → finalize_turn()`입니다. 플레이어 이동·공격·아이템 사용 등이 성공하면 적 턴이 시작되고, 턴이 끝날 때 `EndTurnAction` 마커가 쌓여 Undo 경계가 됩니다.
 
-- **복잡도:** 적 턴 O(E × F), F ≤ 8
+**1단계 — 수집 (`TurnResolver.collect_actions`)**  
+현재 층 살아 있는 적마다 `EntityTurnPlan`을 만듭니다. 각 적은 `propose()`로 행동 후보를 제안합니다.
+- 인접 → `CombatAction` (근접 공격)
+- 시야 6 이내 → A* 경로의 다음 칸 `MoveAction`
+- 시야 밖 → 랜덤 방향 `MoveAction` (wander)
+
+`ActionValidator`로 검증합니다. 벽·점유·맵 밖이면 `fallback()`으로 방향을 바꿔 최대 8회 재시도합니다. 통과한 Action만 `list[Action]`에 추가합니다. **이 단계에서는 아직 보드 상태를 바꾸지 않습니다.**
+
+**2단계 — 실행 (`run_enemy_turns`)**  
+확정된 리스트를 순서대로 `execute()` + `undo_manager.record()`합니다. 전투 Action은 HP 변화 로그를 남깁니다.
+
+FIFO per-entity Queue는 액터가 번갈아 한 번씩 행동하는 구조인데, 이 게임은 **플레이어가 항상 먼저, 그다음 적 전원**이 UX에 맞습니다. 계획(collect)과 실행(execute)을 분리해, 한 턴의 적 행동 전체가 Undo·로그 단위로 묶입니다.
+
+- **복잡도:** 적 턴 O(E × F), E = 적 수, F ≤ 8 (fallback 상한)
 
 ---
 
@@ -157,12 +183,12 @@ n ≤ 10이면 O(n²)도 체감상 즉시입니다. Tim Sort O(n log n)은 이 �
 
 | 슬라이드 제목 | 이 대본 섹션 |
 |---------------|--------------|
-| Dungeon Map · 2D Map | Dungeon Map > 2D Map |
+| Dungeon Map · 타일 이동 · 충돌 검사 | Dungeon Map > 이동 및 충돌 검사 — set / 2D array |
 | Dungeon Map · Graph | Dungeon Map > Graph |
 | Dungeon Map · Greedy Spanning Tree | Dungeon Map > Greedy Spanning Tree |
-| Dungeon Map · A* | Dungeon Map > A* |
-| Undo System · Two-Stack | Undo System > Two-Stack |
-| Undo System · Command Pattern | Undo System > Command Pattern |
+| Dungeon Map · 맵 생성 — 통로 캐빙 | Dungeon Map > 맵 생성 — 통로 생성 |
+| Undo System · 행동 되돌리기 | Undo System > 행동 되돌리기 (Undo) |
+| Undo System · Action 기록 | Undo System > Action 기록 |
 | Turn Management · Batch Action List | Turn Management > Batch Action List |
 | Turn Management · Turn Counter | Turn Management > Turn Counter |
 | Item Inventory · List | Item Inventory > List |

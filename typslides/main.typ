@@ -29,7 +29,7 @@
     #text(size: 13pt)[
       *장점* #pros \
       *단점* #cons \
-      #desc
+      *특징* #desc
     ]
   ]
 }
@@ -82,7 +82,7 @@
 #show: typslides.with(
   ratio: "16-9",
   theme: "bluey",
-  font: "Sarasa Gothic K",
+  font: "Pretendard",
   font-size: 18pt,
   link-style: "color",
   show-progress: true,
@@ -133,7 +133,7 @@
   ][
     #framed[
       🌳 *Item Inventory* \
-      List · Hash Map
+      List (10 slots)
     ]
     #v(0.35em)
     #framed[
@@ -175,12 +175,12 @@
 
 #dsa-slide(
   feature: "Dungeon Map",
-  heading: "타일 이동 · 충돌 검사",
-  chosen-name: "2D Map (`set`)",
-  chosen-pros: [타일 조회 O(1), 이동·렌더 좌표 1:1],
-  chosen-cons: [좌표 범위 검사 필요],
+  heading: "이동 및 충돌 검사",
+  chosen-name: "set",
+  chosen-pros: [사용하는 타일만 기억 → 메모리 절약, Python hash table 기반 빠른 조회],
+  chosen-cons: [맵 크기(53×30) 표현 불가 → 범위 검사 별도 필요],
   chosen-desc: [`floor_tiles` / `_blocked` set으로 53×30 월드 상태 관리],
-  alt-name: "2D 배열",
+  alt-name: "2D array",
   alt-pros: [인덱스 접근 O(1), 구현 직관적],
   alt-cons: [전체 1,590칸 항상 할당],
   alt-desc: [바닥이 없는 빈 공간까지 메모리 점유],
@@ -220,8 +220,8 @@
 
 #dsa-slide(
   feature: "Dungeon Map",
-  heading: "맵 생성 — 통로 캐빙",
-  chosen-name: "A\* (맨해튼)",
+  heading: "맵 생성 — 통로 생성",
+  chosen-name: "A* (맨해튼)",
   chosen-pros: [`protected`로 타 방 관통 방지, 최단 경로],
   chosen-cons: [WH log WH — 맵 크기에 비례],
   chosen-desc: [방 외곽 타일 연결 → A\* → `floor_tiles`에 복도 추가],
@@ -229,7 +229,7 @@
   alt-pros: [구현 매우 단순],
   alt-cons: [중간에 다른 방 벽·내부 관통],
   alt-desc: [앵커만 잇는 직선/꺾은선은 충돌 빈번],
-  why: [템플릿 기반 배치에서 방 침범 없이 통로를 보장해야 함],
+  why: [L자 직선 복도는 다른 방을 막힌 벽으로 보고 우회하지 않아, 방을 뚫고 통로가 생성되는 문제가 발생하여, 대안으로 A\*를 선택],
   code: "generation/corridor_carver.py — find_corridor_path()",
 )
 
@@ -238,7 +238,7 @@
 
 #dsa-slide(
   feature: "Undo System",
-  heading: "행동 되돌리기",
+  heading: "행동 되돌리기 (Undo)",
   chosen-name: "Two-Stack (LIFO)",
   chosen-pros: [push/pop O(1), Undo 순서 자연스러움],
   chosen-cons: [히스토리 길이에 비례 메모리],
@@ -254,16 +254,22 @@
 #dsa-slide(
   feature: "Undo System",
   heading: "Action 기록",
-  chosen-name: "Command Pattern",
-  chosen-pros: [execute/undo 응집, delta만 저장],
-  chosen-cons: [Action 클래스 수 증가],
-  chosen-desc: [Move · Combat · Loot · Consume — 각각 역연산 내장],
+  chosen-name: "Command Pattern (`Action` ABC)",
+  chosen-pros: [추상 클래스로 execute/undo 계약 통일, 원자 단위 delta만 저장],
+  chosen-cons: [Action 서브클래스·역연산 필드 증가],
+  chosen-desc: [
+    `Action(ABC)` — `MoveAction` · `CombatAction` · `LootAction` · `ConsumeAction` · `EndTurnAction` \
+    각 execute()가 변경분만 기록, undo()가 역연산
+  ],
   alt-name: "전체 스냅샷 (Memento)",
   alt-pros: [구현 단순, 복원 한 번에],
   alt-cons: [O(맵×턴) 메모리],
   alt-desc: [맵·엔티티 전체 복사 부담],
-  why: [변경분만 Action에 담아 메모리 절약 + 로직 분산 방지],
-  code: "actions/move_action.py · combat_action.py · loot_action.py",
+  why: [
+    행동마다 원자적 Action 객체로 캡슐화하고, ABC가 execute/undo 인터페이스를 강제해 \
+    `UndoManager`는 타입 분기 없이 action.undo()만 호출 — undo 흐름이 통일됨
+  ],
+  code: "actions/base_action.py · move/combat/loot/consume_action.py",
 )
 
 // ── Feature 3: Turn Management ─────────────────────────────────────────────
@@ -273,15 +279,22 @@
   feature: "Turn Management",
   heading: "적 턴 일괄 처리",
   chosen-name: "Batch Action List",
-  chosen-pros: [플레이어→적 단계 명확, 로그·Undo 경계 깔끔],
+  chosen-pros: [플레이어→적 단계 명확, 계획·실행 분리로 로그·Undo 경계 깔끔],
   chosen-cons: [공정 순환(라운드 로빈) 미지원],
-  chosen-desc: [propose → validate → fallback(≤8) → 순차 execute],
+  chosen-desc: [
+    1단계: 적마다 propose → `ActionValidator` → fallback(≤8) → `list[Action]` 수집 \
+    2단계: 확정 리스트를 순차 execute + `undo_manager.record`
+  ],
   alt-name: "FIFO per-entity Queue",
   alt-pros: [다수 액터 공정 순환],
   alt-cons: [플레이어 항상 선행 UX와 충돌],
-  alt-desc: [TUI 턴제에서 매 턴 플레이어 먼저가 자연스러움],
-  why: [본 게임은 플레이어 1액션 후 적 전원 — 배치 모델이 UX에 맞음],
-  code: "engine/turn_resolver.py — TurnResolver.collect_actions()",
+  alt-desc: [per-entity FIFO 순환 큐는 TUI UX(플레이어 선행)와 맞지 않음],
+  why: [
+    플레이어 1액션 성공 후 `run_enemy_turns()` — 현재 층 적 전원 행동을 \
+    먼저 모두 확정한 뒤 실행해, 턴 단위 Undo·로그가 한 경계로 묶임. \
+    구현의 간단함을 위해 플레이어가 항상 선행하는 방식으로 구현
+  ],
+  code: "engine/turn_resolver.py · game_manager.py — run_enemy_turns()",
 )
 
 #dsa-slide(
@@ -306,7 +319,7 @@
   feature: "Item Inventory",
   heading: "슬롯 UI 매핑",
   chosen-name: "List (10 slots)",
-  chosen-pros: [키 `1`~`0` ↔ index 1:1, 직관적],
+  chosen-pros: [키 `1~0` ↔ index 1:1, 직관적],
   chosen-cons: [빈 슬롯 탐색 O(10)],
   chosen-desc: [`list[Item | None]` 고정 10칸],
   alt-name: "Dict only",
@@ -317,28 +330,13 @@
   code: "models/inventory.py — Inventory.slots",
 )
 
-#dsa-slide(
-  feature: "Item Inventory",
-  heading: "아이템 개수 집계",
-  chosen-name: "Hash Map",
-  chosen-pros: [이름별 개수 O(1), 표시·검색 빠름],
-  chosen-cons: [슬롯 순서 정보 없음 → List와 병행],
-  chosen-desc: [`defaultdict[str, int]` counts],
-  alt-name: "List only",
-  alt-pros: [구조 단일, 추가 DS 불필요],
-  alt-cons: [개수 집계마다 O(n) 순회],
-  alt-desc: [10칸이어도 매 조회 선형 탐색],
-  why: [슬롯(List) + 개수(Dict) 역할 분리가 각각 O(1) 강점 활용],
-  code: "models/inventory.py — Inventory.counts",
-)
-
 // ── Feature 5: Enemy AI ─────────────────────────────────────────────────────
 #title-slide[Enemy AI]
 
 #dsa-slide(
   feature: "Enemy AI",
   heading: "적 추적 경로",
-  chosen-name: "A\* (맨해튼)",
+  chosen-name: "A* (맨해튼)",
   chosen-pros: [최단 경로 보장, 휴리스틱으로 탐색 축소],
   chosen-cons: [blocker·fallback 처리 필요],
   chosen-desc: [시야 6 이내 플레이어 추적, 4방향 2D],
@@ -411,7 +409,7 @@
     [Dungeon Map], [2D Map · Graph · Spanning Tree · A\*],
     [Undo System], [Two-Stack · Command Pattern],
     [Turn Management], [Batch List · Turn Counter],
-    [Item Inventory], [List · Hash Map],
+    [Item Inventory], [List (10 slots)],
     [Enemy AI], [A\* · min-heap],
     [Leaderboard], [Array · Insertion Sort],
   )
